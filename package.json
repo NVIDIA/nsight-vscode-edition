@@ -1,0 +1,228 @@
+{
+    "name": "nsight-vscode-edition",
+    "version": "2021.1.0",
+    "preview": true,
+    "displayName": "Nsight Visual Studio Code Edition",
+    "description": "CUDA development and debugging support for VS Code",
+    "publisher": "nvidia",
+    "icon": "nsight-128.png",
+    "readme": "README.md",
+    "author": {
+        "name": "NVIDIA"
+    },
+    "engines": {
+        "vscode": "^1.56.0"
+    },
+    "extensionPack": [
+        "ms-vscode.cpptools"
+    ],
+    "repository": {
+        "type": "",
+        "url": ""
+    },
+    "keywords": [
+        "CUDA",
+        "CUDA C++",
+        "GPGPU",
+        "NVIDIA"
+    ],
+    "categories": [
+        "Debuggers",
+        "Programming Languages"
+    ],
+    "activationEvents": [
+        "onCommand:cuda.changeDebugFocus",
+        "onDebug",
+        "onLanguage:cuda-cpp",
+        "onUri",
+        "workspaceContains:**/*.cu"
+    ],
+    "main": "./dist/extension",
+    "contributes": {
+        "commands": [
+            {
+                "command": "cuda.changeDebugFocus",
+                "title": "Change CUDA debug focus",
+                "category": "CUDA"
+            }
+        ],
+        "breakpoints": [
+            {
+                "language": "c"
+            },
+            {
+                "language": "cpp"
+            },
+            {
+                "language": "cuda"
+            },
+            {
+                "language": "cuda-cpp"
+            }
+        ],
+        "debuggers": [
+            {
+                "type": "cuda-gdb",
+                "label": "CUDA C++ (CUDA-GDB)",
+                "languages": [
+                    "c",
+                    "cpp",
+                    "cuda-cpp"
+                ],
+                "program": "./out/debugger/cudaGdbAdapter.js",
+                "runtime": "node",
+                "configurationAttributes": {
+                    "launch": {
+                        "type": "object",
+                        "required": [
+                            "program"
+                        ],
+                        "properties": {
+                            "debuggerPath": {
+                                "type": "string",
+                                "description": "The path to cuda-gdb. If unspecified, the path will be searched for cuda-gdb.",
+                                "default": "/usr/local/cuda/bin/cuda-gdb"
+                            },
+                            "program": {
+                                "type": "string",
+                                "description": "",
+                                "default": "${workspaceFolder}/a.out"
+                            },
+                            "args": {
+                                "type": "string",
+                                "description": "Command-line arguments to pass to the debuggee.",
+                                "default": ""
+                            },
+                            "verboseLogging": {
+                                "type": "boolean",
+                                "description": "Produce verbose log output",
+                                "default": false
+                            },
+                            "logFile": {
+                                "type": "string",
+                                "description": "Absolute path to the file to log interaction with cuda-gdb."
+                            },
+                            "initCommands": {
+                                "type": "array",
+                                "description": "List of GDB commands sent before starting inferior.",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "default": []
+                            },
+                            "breakOnLaunch": {
+                                "type": "boolean",
+                                "description": "Break on the first instruction of every launched kernel.",
+                                "default": false
+                            },
+                            "onAPIError": {
+                                "type": "string",
+                                "enum": [
+                                    "hide",
+                                    "ignore",
+                                    "stop"
+                                ],
+                                "description": "Return a warning if any driver API or runtime API indicates an error.",
+                                "default": "hide"
+                            }
+                        }
+                    },
+                    "attach": {}
+                },
+                "initialConfigurations": [
+                    {
+                        "name": "CUDA C++: Launch",
+                        "type": "cuda-gdb",
+                        "request": "launch",
+                        "program": ""
+                    }
+                ],
+                "configurationSnippets": [
+                    {
+                        "label": "CUDA C++: Launch",
+                        "description": "Launch a CUDA program in debug mode",
+                        "body": {
+                            "name": "CUDA C++: Launch",
+                            "type": "cuda-gdb",
+                            "request": "launch",
+                            "program": ""
+                        }
+                    }
+                ],
+                "variables": {}
+            }
+        ]
+    },
+    "scripts": {
+        "clean": "gulp clean",
+        "compile": "gulp compile",
+        "lint": "eslint src --ext ts",
+        "pretest": "gulp compile:tests && npm run lint",
+        "test": "mocha --timeout 10000 out/testWebpacks/*.test.js",
+        "clean:tests": "gulp clean:tests",
+        "watch": "webpack -c webpack.dev.js --watch --no-color",
+        "webpack:prod": "webpack -c webpack.prod.js",
+        "package": "gulp package",
+        "tsc": "tsc -p ./",
+        "pretest:no-webpack": "npm run tsc && npm run lint && gulp compile:test-programs",
+        "test:no-webpack": "mocha --timeout 10000 out/test/*.test.js",
+        "webpack:dbg-adapter": "gulp webback:gdb-adapter",
+        "webpack:unit-test": "gulp webpack:unit-test"
+    },
+    "devDependencies": {
+        "@types/chai": "^4.2.15",
+        "@types/del": "^4.0.0",
+        "@types/fs-extra": "^9.0.7",
+        "@types/glob": "^7.1.3",
+        "@types/gulp": "^4.0.8",
+        "@types/mocha": "^7.0.2",
+        "@types/node": "^13.13.47",
+        "@types/semver": "^7.3.4",
+        "@types/universal-analytics": "^0.4.4",
+        "@types/uuid": "^8.3.0",
+        "@types/vscode": "^1.54.0",
+        "@typescript-eslint/eslint-plugin": "^2.30.0",
+        "@typescript-eslint/parser": "^2.30.0",
+        "await-spawn": "^4.0.1",
+        "chai": "^4.3.4",
+        "del": "^6.0.0",
+        "eslint": "^6.8.0",
+        "eslint-config-airbnb-typescript": "^7.2.1",
+        "eslint-config-prettier": "^6.15.0",
+        "eslint-plugin-eslint-comments": "^3.2.0",
+        "eslint-plugin-import": "^2.22.1",
+        "eslint-plugin-jsx-a11y": "^6.4.1",
+        "eslint-plugin-prettier": "^3.3.1",
+        "eslint-plugin-promise": "^4.3.1",
+        "eslint-plugin-react": "^7.23.0",
+        "eslint-plugin-unicorn": "^20.1.0",
+        "gulp": "^4.0.2",
+        "gulp-chmod": "^3.0.0",
+        "gulp-shell": "^0.8.0",
+        "gulp-sourcemaps": "^3.0.0",
+        "gulp-typescript": "^6.0.0-alpha.1",
+        "mocha": "^7.1.2",
+        "node-gyp": "^7.1.2",
+        "node-loader": "^2.0.0",
+        "prettier": "^2.2.1",
+        "semver": "^7.3.5",
+        "through2": "^2.0.5",
+        "ts-loader": "^8.1.0",
+        "typescript": "^3.9.9",
+        "vsce": "^1.87.0",
+        "vscode-debugadapter-testsupport": "^1.45.0",
+        "vscode-test": "^1.5.1",
+        "webpack": "^5.33.2",
+        "webpack-cli": "^4.6.0",
+        "yargs": "^16.2.0"
+    },
+    "dependencies": {
+        "cdt-gdb-adapter": "0.0.15-next.20210201232200.d3ec2b3.0",
+        "fs-extra": "^9.1.0",
+        "haz": "^0.1.0",
+        "universal-analytics": "^0.4.23",
+        "uuid": "^8.3.2",
+        "vscode-debugadapter": "^1.45.0",
+        "vscode-debugprotocol": "^1.45.0"
+    }
+}

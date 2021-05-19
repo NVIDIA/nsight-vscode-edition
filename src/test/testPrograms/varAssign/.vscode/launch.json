@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "CUDA: Debug with CUDA-GDB",
+            "type": "cuda-gdb",
+            "request": "launch",
+            "gdb": "cuda-gdb",
+            "program": "${workspaceFolder}/varAssign",
+            "arguments": "",
+            "logFile": "${workspaceFolder}/.rubicon_log",
+            "verbose": true
+        }
+    ]
+}

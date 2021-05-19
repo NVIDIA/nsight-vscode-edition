@@ -1,0 +1,36 @@
+{
+    "deviceRegisterGroups": [
+        {
+            "groupName": "SASS",
+            "groupPattern": "^R\\d+$"
+        },
+        {
+            "groupName": "Predicate",
+            "groupPattern": "^P\\d+$",
+            "isPredicate": true
+        },
+        {
+            "groupName": "Uniform",
+            "groupPattern": "^UR\\d+$"
+        },
+        {
+            "groupName": "Uniform Predicate",
+            "groupPattern": "^UP\\d+$",
+            "isPredicate": true
+        },
+        {
+            "groupName": "Hidden Registers",
+            "groupPattern": "\\(dummy internal register\\)",
+            "isHidden": true
+        },
+        {
+            "groupName": "Unnamed Registers",
+            "groupPattern": "^$",
+            "isHidden": true
+        },
+        {
+            "groupName": "Other",
+            "groupPattern": ".*"
+        }
+    ]
+}
