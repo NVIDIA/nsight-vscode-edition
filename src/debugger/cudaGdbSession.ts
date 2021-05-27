@@ -814,6 +814,8 @@ export class CudaGdbSession extends GDBDebugSession {
         }
     }
 
+    // This function has been borrowed from CDT's implementation with a slight
+    // modification to check for child.value being nullish (null or undefined.)
     // eslint-disable-next-line class-methods-use-this
     protected isChildOfClass(child: MIVarChild): boolean {
         return child.type === undefined && (!child.value || child.value === '') && (child.exp === 'public' || child.exp === 'protected' || child.exp === 'private');

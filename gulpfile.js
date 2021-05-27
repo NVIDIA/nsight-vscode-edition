@@ -299,7 +299,8 @@ const packageVsix = defineTask({
 
             const vsixFileName = `${packageJson.name}-${packageJson.version}.vsix`;
             await vsce.createVSIX({
-                packagePath: vsixFileName
+                packagePath: vsixFileName,
+                baseImagesUrl: 'https://developer.nvidia.com/sites/default/files/akamai/tools/nsvsce'
             });
 
             const zipFileName = `Rubicon-${exportOption}-${configOption}.zip`;

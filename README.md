@@ -1,74 +1,111 @@
 # Nsight Visual Studio Code Edition
 
-Nsight Visual Studio Code edition provides features for CUDA and GPGPU development, such as:
+#### [Overview](https://developer.nvidia.com/nsight-visual-studio-code-edition)&nbsp;&nbsp;|&nbsp;&nbsp;[Documentation](https://docs.nvidia.com/nsight-visual-studio-code-edition/)&nbsp;&nbsp;|&nbsp;&nbsp;[Forum](https://forums.developer.nvidia.com/c/development-tools/nsight-vscode-edition)&nbsp;&nbsp;|&nbsp;&nbsp;[Code Samples](https://github.com/NVIDIA/cuda-samples)
 
-* **Declarative language configuration** for CUDA syntax highlighting, bracket matching, code folding, auto-indention, etc.
-* **C++ language server extensions** to support CUDA-specific language features.
-* **Debugger adapter** to provide CUDA debugging.
-* **Debugger views** to provide CUDA-specific debugging information.
-* **IDE extensions** to add productivity enhancements to the VS Code environment.
+Nsight Visual Studio Code edition is an extension for
+[Visual Studio Code](https://code.visualstudio.com/) that
+provides support for [CUDA](https://developer.nvidia.com/cuda-zone)
+development, including features such as Intellisense, debugging, debugger views,
+and productivity enhancements.
 
-## Features
+## Benefits
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+* **Higher Productivity**<br>
+  Using smart CUDA auto-code completion features improves the overall
+  development experience and enables users to save time and effort when writing
+  code.
 
-For example if there is an image subfolder under your extension project workspace:
+* **Interactivity**<br>
+  Debugging with Nsight Visual Studio Code Edition provides diverse benefits,
+  including code formatting, easy navigation through source code, displaying and
+  interacting with different source files, building executables, and testing.
 
-\!\[feature X\]\(images/feature-x.png\)
+* **Remote Development Support**<br>
+  Nsight Visual Studio Code Edition enables developers to implement CUDA code in
+  various cluster environments such as Virtual Machines or remote Docker
+  containers. It also supports code development for Linux systems via the Remote
+  – WSL extension.
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+* **Free**<br>
+  As with other Nsight tools from NVIDIA, Nsight Visual Studio Code Edition is
+  offered free of charge.  We love it when your code works better and is
+  delivered sooner. Enjoy!
+
+## Key Features
+
+* **CUDA Syntax Highlighting for Code Development and Debugging**<br>
+  Edit code productively with syntax highlighting and IntelliSense for CUDA
+  code.  Auto-completion, go to definition, find references, rename symbols, and
+  more all seamlessly work for kernel functions the same as they do for C++
+  functions.
+
+* **CUDA Kernel Breakpoint Support and Kernel Execution Control**<br>
+  Break into a debugging session in CPU or GPU device code using standard
+  breakpoints, including support for conditional breakpoints with expression
+  evaluation. GUI controls allow you to step over, into, or out of statements in
+  the source code, just like normal CPU debugging. Breakpoints are evaluated for
+  every kernel thread and will halt execution when any thread encounters them.
+
+* **GPU and Kernel State Inspection**<br>
+  Break into the debugger to see all the detailed information at any point in
+  the application with GPU debugging support for register, variable, and
+  call-stack. There is watchlist support to add specific variables of interest
+  for tracking. Additionally, there are focus controls to manually select
+  streaming multiprocessor (SM), warp, and lane numbers to switch the debugger
+  focus.
+
+## Want to know more?
+
+* **See the Nsight VSCode Edition spotlight video**<br>
+  This [Nsight VSCode Edition
+  spotlight](https://www.youtube.com/watch?v=gN3XeFwZ4ng) shows you how Nsight
+  VSCode Edition fits in with the other NVIDIA IDE debuggers and can be set up
+  in Microsoft's Visual Studio Code.  Then, you'll see all the key features in
+  action.  You're going to love it!
+
+* **See Nsight VSCode Edition demonstrated at GTC'21**<br>
+  [GTC'21 Video On Demand: Latest Enhancements to CUDA Debugger IDEs](https://gtc21.event.nvidia.com/media/Latest%20Enhancements%20to%20CUDA%20Debugger%20IDEs%20%5BS31884%5D/1_geie6h11)
+
+* **View the Microsoft announcement for the VSCode extension by Nsight VSCE**<br>
+  [CUDA Support in Visual Studio Code with Julia Reid](https://www.youtube.com/watch?v=l6PgYhiQr-I&list=PLReL099Y5nRcWPNnKO4cwxN5RJZl9A48P&index=4)
+
+* **Read the blog posting**<br>
+  [Announcing NVIDIA Nsight Visual Studio Code Edition: New Addition to the Nsight Developer Tools Suite](https://developer.nvidia.com/blog/announcing-nvidia-nsight-visual-studio-code-edition-new-addition-to-the-nsight-developer-tools-suite/)
+
+* **Visit the Nsight VSCode Edition overview page**<br>
+  The [Nsight VSCode Edition overview
+  page](https://developer.nvidia.com/nsight-visual-studio-code-edition) is your
+  information hub for general information, availability, videos, and other links
+  to other NVIDIA tools for GPU code development.
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+* **[CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit)**: Install the CUDA Toolkit to get important tools for
+  CUDA application development including the
+  [NVCC compiler driver](https://docs.nvidia.com/cuda/cuda-compiler-driver-nvcc/index.html) and
+  [cuda-gdb](https://docs.nvidia.com/cuda/cuda-gdb/index.html), the NVIDIA tool for debugging CUDA.
 
-## Extension Settings
+* **[Microsoft vscode-cpptools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools)**:
+  Install Microsoft's C/C++ for Visual Studio Code to get Intellisense support for CUDA C++ code. 
+  Nsight VS Code Edition will automatically install this extension.
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+## Quick Start
 
-For example:
+Open or create a new CUDA application.
 
-This extension contributes the following settings:
+Create a [launch configuration](https://code.visualstudio.com/docs/editor/debugging#_launch-configurations).
 
-* `myExtension.enable`: enable/disable this extension
-* `myExtension.thing`: set to `blah` to do something
+![Create launch configuration](nsight-debug-config.gif)
 
-## Known Issues
+Start debugging!
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+![Start debugging](nsight-debug.gif)
 
 ## Support
-Reach out to us for feedback and questions via [nsight-vscode@nvidia.com](mailto:nsight-vscode@nvidia.com) or through [our developer forum](https://forums.developer.nvidia.com/c/development-tools/nsight-vscode-edition/).
+Reach out to us for feedback and questions via [our developer forum](https://forums.developer.nvidia.com/c/development-tools/nsight-vscode-edition/).
 
-## Release Notes
+## Data and telemetry
 
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
------------------------------------------------------------------------------------------------------------
-
-## Working with Markdown
-
-**Note:** You can author your README using Visual Studio Code.  Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux)
-* Toggle preview (`Shift+CMD+V` on macOS or `Shift+Ctrl+V` on Windows and Linux)
-* Press `Ctrl+Space` (Windows, Linux) or `Cmd+Space` (macOS) to see a list of Markdown snippets
-
-### For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+This extension collects usage data and sends it to NVIDIA to help improve our products. This
+extension respects the `"telemetry.enableTelemetry"` setting, for more info see
+[Visual Studio Code Telemetry](https://code.visualstudio.com/docs/getstarted/telemetry).

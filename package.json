@@ -17,9 +17,14 @@
         "ms-vscode.cpptools"
     ],
     "repository": {
-        "type": "",
-        "url": ""
+        "type": "git",
+        "url": "https://github.com/NVIDIA/nsight-vscode-edition.git"
     },
+    "bugs": {
+        "type": "git",
+        "url": "https://github.com/NVIDIA/nsight-vscode-edition/issues"
+    },
+    "homepage": "https://developer.nvidia.com/nsight-visual-studio-code-edition",
     "keywords": [
         "CUDA",
         "CUDA C++",
