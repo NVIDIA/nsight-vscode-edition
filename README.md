@@ -95,11 +95,11 @@ Open or create a new CUDA application.
 
 Create a [launch configuration](https://code.visualstudio.com/docs/editor/debugging#_launch-configurations).
 
-![Create launch configuration](nsight-debug-config.gif)
+![Create launch configuration](images/nsight-debug-config.gif)
 
 Start debugging!
 
-![Start debugging](nsight-debug.gif)
+![Start debugging](images/nsight-debug.gif)
 
 ## Support
 Reach out to us for feedback and questions via [our developer forum](https://forums.developer.nvidia.com/c/development-tools/nsight-vscode-edition/).
