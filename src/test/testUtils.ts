@@ -47,20 +47,29 @@ export class TestUtils {
         return debugAdapterPath;
     }
 
-    static getTestProgram(programName: string): string {
-        let testProgramsDir = path.resolve(__dirname, '../..', 'src/test/testPrograms');
-        let testProgramPath = path.resolve(testProgramsDir, programName);
+    public static resolveTestPath(testPath: string): string {
+        const searchPaths = ['../../src/test/testPrograms', '../src/test/testPrograms'];
 
-        if (fs.existsSync(testProgramPath)) {
-            return testProgramPath;
+        const testProgDirEnvVar = process.env.TEST_PROG_DIR;
+        if (testProgDirEnvVar) {
+            searchPaths.push(testProgDirEnvVar);
         }
 
-        testProgramsDir = path.resolve(__dirname, '..', 'src/test/testPrograms');
-        testProgramPath = path.resolve(testProgramsDir, programName);
+        // eslint-disable-next-line unicorn/no-for-loop
+        for (let i = 0; i < searchPaths.length; i += 1) {
+            const testProgramsDir = path.resolve(__dirname, searchPaths[i]);
+            const resolvedTestPath = path.resolve(testProgramsDir, testPath);
 
-        expect(fs.existsSync(testProgramPath)).eq(true);
+            if (fs.existsSync(resolvedTestPath)) {
+                return resolvedTestPath;
+            }
+        }
 
-        return testProgramPath;
+        throw new Error(`Unable to resolve test path "${testPath}"`);
+    }
+
+    static getTestProgram(programName: string): string {
+        return this.resolveTestPath(programName);
     }
 
     static getTestSource(fileName: string): DebugProtocol.Source {
@@ -74,7 +83,7 @@ export class TestUtils {
         expect(capability).eq(true);
     }
 
-    static async launchDebugger(testProgram: string): Promise<CudaDebugClient> {
+    static async createDebugClient(): Promise<CudaDebugClient> {
         const debugAdapterPath = TestUtils.getDebugAdapterPath();
 
         const dc = new CudaDebugClient(debugAdapterPath);
@@ -92,17 +101,26 @@ export class TestUtils {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         dc.capabilities = initResp.body!;
 
+        return dc;
+    }
+
+    static async getLaunchArguments(testProgram: string): Promise<CudaLaunchRequestArguments> {
         const testProgramPath = TestUtils.getTestProgram(testProgram);
         const logFilePath = path.resolve(path.dirname(testProgramPath), '.rubicon_log');
 
-        const adapterLaunchRequestArgs: CudaLaunchRequestArguments = {
+        return {
             program: testProgramPath,
             verboseLogging: true,
             logFile: logFilePath,
             onAPIError: 'stop'
         };
+    }
 
-        await dc.launchRequest(adapterLaunchRequestArgs);
+    static async launchDebugger(testProgram: string): Promise<CudaDebugClient> {
+        const dc = await this.createDebugClient();
+        const launchArguments = await this.getLaunchArguments(testProgram);
+
+        await dc.launchRequest(launchArguments);
 
         return dc;
     }

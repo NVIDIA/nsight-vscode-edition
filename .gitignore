@@ -1,8 +1,0 @@
-node_modules
-dist
-out
-
-/source.sh
-src/test/testPrograms/sdk/bin/
-.rubicon_log
-

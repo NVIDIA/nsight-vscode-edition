@@ -1,0 +1,18 @@
+{
+   "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "CUDA: Debug with CUDA-GDB",
+            "type": "cuda-gdb",
+            "request": "launch",
+            "gdb": "cuda-gdb",
+            "program": "${workspaceFolder}/launchEnvVars",
+            "arguments": "",
+            "envFile": "${workspaceFolder}/launchEnvVars.txt",
+            "initCommands": ["set env ENV_VAR1=Value3"],
+            "cwd": "~",
+            "stopAtEntry": true
+        }
+
+    ]
+}

@@ -1,0 +1,8 @@
+ENV_VAR1=Value1
+         ENV_VAR2       = Value2                    
+ENV_VAR3 = 
+MISFORMED_LINE
+# A comment (should be ignored)
+=X
+=
+unset        HOME  

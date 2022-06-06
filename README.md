@@ -51,7 +51,7 @@ and productivity enhancements.
   the application with GPU debugging support for register, variable, and
   call-stack. There is watchlist support to add specific variables of interest
   for tracking. Additionally, there are focus controls to manually select
-  streaming multiprocessor (SM), warp, and lane numbers to switch the debugger
+  block and thread coordinates to switch the debugger
   focus.
 
 ## Want to know more?
@@ -91,13 +91,14 @@ and productivity enhancements.
 
 ## Quick Start
 
-Open or create a new CUDA application.
-
-Create a [launch configuration](https://code.visualstudio.com/docs/editor/debugging#_launch-configurations).
+**Open or create a new CUDA application.** <br>
+**Configure the debugging connection**<br>
+ by creating a  [launch configuration](https://docs.nvidia.com/nsight-visual-studio-code-edition/cuda-debugger/index.html#walkthrough-create-launch-config) to launch and debug your application, or <br>
+an [attach configuration](https://docs.nvidia.com/nsight-visual-studio-code-edition/cuda-debugger/index.html#walkthrough-attach-create-launch-config) if the target application is already running
 
 ![Create launch configuration](nsight-debug-config.gif)
 
-Start debugging!
+**Start debugging!**
 
 ![Start debugging](nsight-debug.gif)
 

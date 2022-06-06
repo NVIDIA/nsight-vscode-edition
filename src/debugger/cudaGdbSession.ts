@@ -10,6 +10,8 @@
 \* ---------------------------------------------------------------------------------- */
 
 /* eslint-disable max-classes-per-file */
+/* eslint-disable no-param-reassign */
+
 import {
     AttachRequestArguments,
     FrameReference,
@@ -28,7 +30,9 @@ import {
     MIVariableInfo,
     sendVarUpdate,
     sendVarAssign,
-    FrameVariableReference
+    FrameVariableReference,
+    sendExecContinue,
+    sendExecRun
 } from 'cdt-gdb-adapter';
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
@@ -36,10 +40,14 @@ import { resolve, isAbsolute } from 'path';
 import { BreakpointEvent, ErrorDestination, Event, InvalidatedEvent, logger, OutputEvent, Scope, TerminatedEvent, Thread, Variable } from 'vscode-debugadapter';
 import { DebugProtocol } from 'vscode-debugprotocol';
 
+import * as fs from 'fs';
+import * as util from 'util';
 import { CudaDebugProtocol } from './cudaDebugProtocol';
 import { deviceRegisterGroups } from './deviceRegisterGroups.json';
 import * as types from './types';
 import * as utils from './utils';
+
+const exec = util.promisify(require('child_process').exec);
 
 abstract class Adapter {
     static readonly cudaThreadId: number = 99999;
@@ -114,15 +122,27 @@ export interface ContainerObjectReference extends ObjectVariableReference {
         | undefined;
 }
 
-export interface CudaLaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
+export interface CudaLaunchRequestArguments extends LaunchRequestArguments {
     debuggerPath?: string;
     program: string;
     args?: string;
     verboseLogging?: boolean;
-    logFile?: string;
-    initCommands?: string[];
     breakOnLaunch?: boolean;
     onAPIError?: APIErrorOption;
+    envFile?: string;
+    stopAtEntry?: boolean;
+}
+
+export interface CudaAttachRequestArguments extends AttachRequestArguments {
+    debuggerPath?: string;
+    program: string;
+    args?: string;
+    verboseLogging?: boolean;
+    breakOnLaunch?: boolean;
+    onAPIError?: APIErrorOption;
+    processId: string;
+    port: number;
+    address: string;
 }
 
 interface RegisterNameValuePair {
@@ -155,6 +175,12 @@ class CudaGdbBackend extends GDBBackend {
 
         return result;
     }
+}
+
+interface LaunchEnvVarSpec {
+    type: 'set' | 'unset';
+    name: string;
+    value?: string;
 }
 
 class RegisterGroup {
@@ -261,8 +287,9 @@ export class VariableObjectStore {
 
             return varObj;
         } catch (error) {
-            if (error.message !== '-var-create: unable to create variable object') {
-                logger.error(`Error while creating variable object for watch: ${error}`);
+            const errorMessage = (error as Error).message;
+            if (errorMessage !== '-var-create: unable to create variable object') {
+                logger.error(`Error while creating variable object for watch: ${errorMessage}`);
             }
 
             // eslint-disable-next-line unicorn/no-useless-undefined
@@ -297,13 +324,10 @@ export class VariableObjectStore {
     }
 
     protected static updateVarObj(varObj: SimplifiedVarObjType, update: VarUpdateChanges): void {
-        // eslint-disable-next-line no-param-reassign
         varObj.value = update.value;
 
         if (update.type_changed === 'true') {
-            // eslint-disable-next-line no-param-reassign
             varObj.type = update.new_type;
-            // eslint-disable-next-line no-param-reassign
             varObj.numchild = update.new_num_children;
         }
     }
@@ -473,6 +497,8 @@ export class CudaGdbSession extends GDBDebugSession {
 
     protected clientInitArgs: DebugProtocol.InitializeRequestArguments | undefined;
 
+    protected stopAtEntry = false;
+
     protected createBackend(): GDBBackend {
         const backend: CudaGdbBackend = new CudaGdbBackend();
         const emitter: EventEmitter = backend as EventEmitter;
@@ -574,15 +600,25 @@ export class CudaGdbSession extends GDBDebugSession {
         }
 
         const cdtLaunchArgs: LaunchRequestArguments = { ...args };
+
         cdtLaunchArgs.gdb = args.debuggerPath || 'cuda-gdb';
+
+        try {
+            CudaGdbSession.configureLaunch(args, cdtLaunchArgs);
+        } catch (error) {
+            response.success = false;
+            response.message = (error as Error).message;
+            this.sendErrorResponse(response, 1, response.message);
+            return super.launchRequest(response, args);
+        }
 
         if (args.args !== undefined) {
             cdtLaunchArgs.arguments = args.args;
         }
 
-        if (args.verboseLogging !== undefined) {
-            cdtLaunchArgs.verbose = args.verboseLogging;
-        }
+        // if (args.verboseLogging !== undefined) {
+        //     cdtLaunchArgs.verbose = args.verboseLogging;
+        // }
 
         let cudaGDBexists = false;
         if (cdtLaunchArgs.gdb !== undefined) {
@@ -591,24 +627,230 @@ export class CudaGdbSession extends GDBDebugSession {
 
         if (!cudaGDBexists) {
             response.success = false;
-            response.message = 'Unable to launch cuda-gdb';
+            response.message = `Unable to find cuda-gdb in ${cdtLaunchArgs.gdb}`;
             this.sendErrorResponse(response, 1, response.message);
             return super.launchRequest(response, cdtLaunchArgs);
         }
 
-        if (!cdtLaunchArgs.initCommands) {
-            cdtLaunchArgs.initCommands = [];
-        }
-
-        if (args.breakOnLaunch) {
-            cdtLaunchArgs.initCommands.push('set cuda break_on_launch application');
-        }
-
-        if (args.onAPIError) {
-            cdtLaunchArgs.initCommands.push(`set cuda api_failures ${args.onAPIError}`);
+        if ('stopAtEntry' in args && args.stopAtEntry) {
+            this.stopAtEntry = true;
         }
 
         return super.launchRequest(response, cdtLaunchArgs);
+    }
+
+    protected async attachRequest(response: DebugProtocol.AttachResponse, args: CudaAttachRequestArguments): Promise<void> {
+        this.isAttach = true;
+
+        if (typeof args.processId === 'string') {
+            const processExecName = args.processId.slice(args.processId.indexOf(':') + 1, args.processId.length);
+            args.processId = args.processId.slice(0, args.processId.indexOf(':'));
+            const commandProgram = `readlink -e /proc/${args.processId}/exe`;
+            const { error, stdout, stderr } = await exec(commandProgram.toString());
+            const programPath = `${stdout}`.trim();
+
+            // if the process id is invalid then the command would return null so accounting for that case
+            if (!programPath) {
+                response.success = false;
+                response.message = `Unable to attach to ${processExecName}`;
+                this.sendErrorResponse(response, 1, response.message);
+            }
+
+            if (error) {
+                response.success = false;
+                response.message = `Unable to attach to  ${processExecName}, ${error}`;
+                this.sendErrorResponse(response, 1, response.message);
+            }
+
+            if (stderr) {
+                response.success = false;
+                response.message = `Unable to attach to  ${processExecName} ,${stderr}`;
+                this.sendErrorResponse(response, 1, response.message);
+            }
+
+            args.program = programPath;
+        } else if (typeof args.processId === 'number') {
+            // rare case that the process picker is not used and the user manually enters the pid
+
+            const commandProgram = `readlink -e /proc/${args.processId}/exe`;
+            const { error, stdout, stderr } = await exec(commandProgram.toString());
+            const programPath = `${stdout}`.trim();
+
+            // if the process id is invalid then the command would return null so accounting for that case
+            if (!programPath) {
+                response.success = false;
+                response.message = `Unable to attach to process with pid ${args.processId}`;
+                this.sendErrorResponse(response, 1, response.message);
+            }
+
+            if (error) {
+                response.success = false;
+                response.message = `Unable to attach to process with pid ${args.processId}, ${error}`;
+                this.sendErrorResponse(response, 1, response.message);
+            }
+
+            if (stderr) {
+                response.success = false;
+                response.message = `Unable to attach to process with pid ${args.processId}, ${stderr}`;
+                this.sendErrorResponse(response, 1, response.message);
+            }
+
+            args.processId = `${args.processId}`;
+            args.program = programPath;
+        }
+        let logFilePath = args.logFile;
+        if (logFilePath && !isAbsolute(logFilePath)) {
+            logFilePath = resolve(logFilePath);
+        }
+
+        // Logger setup is handled in the base class
+        logger.init((outputEvent: OutputEvent) => this.sendEvent(outputEvent), logFilePath, true);
+
+        if (process.platform !== 'linux') {
+            response.success = false;
+            response.message = 'Unable to launch cuda-gdb on non-Linux system';
+            this.sendErrorResponse(response, 1, response.message);
+            return super.attachRequest(response, args);
+        }
+
+        // 0 is requires for cuda-gdb to attach to non-children
+        const ptraceScope = fs.readFileSync('/proc/sys/kernel/yama/ptrace_scope', 'ascii');
+        const ptraceLocked = ptraceScope.trim() !== '0';
+
+        if (ptraceLocked) {
+            response.success = false;
+            response.message = 'Please try running echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope ';
+            this.sendErrorResponse(response, 1, response.message);
+        }
+
+        if (!args.port) {
+            const defaultPort = 5858;
+            args.port = defaultPort;
+        }
+
+        if (args.address === 'localhost') {
+            const defaultAddress = '127.0.0.1';
+            args.address = defaultAddress;
+        }
+
+        const cdtAttachArgs: AttachRequestArguments = { ...args };
+
+        cdtAttachArgs.gdb = args.debuggerPath || 'cuda-gdb';
+
+        CudaGdbSession.configureLaunch(args, cdtAttachArgs);
+
+        let cudaGDBexists = false;
+        if (cdtAttachArgs.gdb !== undefined) {
+            cudaGDBexists = checkCudaGdb(cdtAttachArgs.gdb);
+        }
+
+        if (!cudaGDBexists) {
+            response.success = false;
+            response.message = `Unable to find cuda-gdb in ${cdtAttachArgs.gdb}`;
+            this.sendErrorResponse(response, 1, response.message);
+            return super.attachRequest(response, cdtAttachArgs);
+        }
+
+        return super.attachRequest(response, cdtAttachArgs);
+    }
+
+    protected static getLaunchEnvVars(pathToEnvFile: string): LaunchEnvVarSpec[] {
+        if (!isAbsolute(pathToEnvFile)) {
+            pathToEnvFile = resolve(pathToEnvFile);
+        }
+
+        let envFileContents = '';
+        try {
+            envFileContents = fs.readFileSync(pathToEnvFile, { encoding: 'utf8', flag: 'r' });
+        } catch (error) {
+            throw new Error(`Unable to read launch environment variables file:\n${(error as Error).message}`);
+        }
+
+        const unsetString = 'unset';
+
+        const envVarSpecs: LaunchEnvVarSpec[] = [];
+        const envFileLines = envFileContents.split(/\r?\n/);
+        envFileLines.forEach((line) => {
+            line = line.trim();
+            if (line.length === 0 || line.startsWith('#')) {
+                return;
+            }
+
+            const eqIdx = line.indexOf('=');
+            if (eqIdx >= 0) {
+                const name = line.slice(0, eqIdx).trim();
+                if (name.length > 0) {
+                    const value = line.slice(eqIdx + 1).trim();
+                    envVarSpecs.push({ type: 'set', name, value });
+                    return;
+                }
+            } else if (line.startsWith(unsetString) && line.length > unsetString.length) {
+                if (line.slice(unsetString.length, unsetString.length + 1).trim().length === 0) {
+                    const name = line.slice(unsetString.length + 1).trim();
+                    if (name.length > 0) {
+                        envVarSpecs.push({ type: 'unset', name });
+                        return;
+                    }
+                }
+            }
+
+            logger.warn(`Invalid environment variable specification: ${line}`);
+        });
+
+        return envVarSpecs;
+    }
+
+    protected static configureLaunch(args: CudaAttachRequestArguments | CudaLaunchRequestArguments, cdtArgs: AttachRequestArguments | LaunchRequestArguments): void {
+        if (args.verboseLogging !== undefined) {
+            cdtArgs.verbose = args.verboseLogging;
+        }
+
+        if (args.verboseLogging !== undefined) {
+            cdtArgs.verbose = args.verboseLogging;
+        }
+
+        if (!cdtArgs.initCommands) {
+            cdtArgs.initCommands = [];
+        }
+
+        if ('envFile' in args && args.envFile) {
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            const envVarSpecs = this.getLaunchEnvVars(args.envFile);
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            cdtArgs.initCommands!.unshift(...envVarSpecs.map((spec) => (spec.type === 'set' ? `set env ${spec.name}=${spec.value!}` : `unset env ${spec.name}`)));
+        }
+
+        if ('cwd' in args && args.cwd) {
+            cdtArgs.initCommands.push(`set cwd ${args.cwd}`);
+        }
+
+        if (args.breakOnLaunch) {
+            cdtArgs.initCommands.push('set cuda break_on_launch application');
+        }
+
+        if (args.onAPIError) {
+            cdtArgs.initCommands.push(`set cuda api_failures ${args.onAPIError}`);
+        }
+    }
+
+    // This method has been borrowed from cdt-gdb-adapter's GDBDebugSession.ts (with modifications).
+    protected async configurationDoneRequest(
+        response: DebugProtocol.ConfigurationDoneResponse,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        args: DebugProtocol.ConfigurationDoneArguments
+    ): Promise<void> {
+        try {
+            if (this.isAttach) {
+                await sendExecContinue(this.gdb);
+            } else if (this.stopAtEntry) {
+                await this.gdb.sendCommand('start');
+            } else {
+                await sendExecRun(this.gdb);
+            }
+            this.sendResponse(response);
+        } catch (error) {
+            this.sendErrorResponse(response, 100, (error as Error).message);
+        }
     }
 
     protected handleGDBAsync(resultClass: string, resultData: any): void {
@@ -629,7 +871,6 @@ export class CudaGdbSession extends GDBDebugSession {
             // location if focus is switched to a CPU thread.
 
             if (resultData.CudaFocus) {
-                // eslint-disable-next-line no-param-reassign
                 resultData['thread-id'] = this.cudaThread.id.toString();
 
                 // Currently only using software coordinates, use code below if hardware coordinates are needed.
@@ -686,7 +927,7 @@ export class CudaGdbSession extends GDBDebugSession {
             }
             this.sendEvent(new BreakpointEvent('changed', breakpoint));
         } catch (error) {
-            const message = `Failed to update breakpoint location: ${error.message}`;
+            const message = `Failed to update breakpoint location: ${(error as Error).message}`;
             logger.error(message);
         }
     }
@@ -863,7 +1104,7 @@ export class CudaGdbSession extends GDBDebugSession {
                 this.sendResponse(response);
             }
         } catch (error) {
-            this.sendErrorResponse(response, 1, error.message);
+            this.sendErrorResponse(response, 1, (error as Error).message);
         }
     }
 
@@ -913,7 +1154,6 @@ export class CudaGdbSession extends GDBDebugSession {
             }
         }
 
-        // eslint-disable-next-line no-param-reassign
         ref.children = flattenedChildVarObjects.map((child) => {
             return {
                 // displayNames should always have a value for child.name.
@@ -1170,7 +1410,6 @@ export class CudaGdbSession extends GDBDebugSession {
                         }
                     });
 
-                    // eslint-disable-next-line no-param-reassign
                     reference.registerData = new RegisterData(registerGroups);
                 }
 
@@ -1254,7 +1493,7 @@ export class CudaGdbSession extends GDBDebugSession {
                 this.sendEvent(new InvalidatedEvent(['variables']));
             }
         } catch (error) {
-            this.sendErrorResponse(response, 1, error.message);
+            this.sendErrorResponse(response, 1, (error as Error).message);
         }
     }
 
@@ -1319,7 +1558,8 @@ function checkCudaGdb(path: string): boolean {
     const haz = require('haz');
     /* eslint-enable global-require */
 
-    if (existsSync(path) || existsSync('/usr/local/cuda/bin/cuda-gdb') || haz('cuda-gdb')) {
+    // the path.endsWith check is for the scenario that the user enters a valid path but one that does not contain cuda-gdb
+    if ((existsSync(path) || existsSync('/usr/local/cuda/bin/cuda-gdb') || haz('cuda-gdb')) && path.endsWith('cuda-gdb')) {
         return true;
     }
 
@@ -1327,3 +1567,4 @@ function checkCudaGdb(path: string): boolean {
 }
 
 /* eslint-enable max-classes-per-file */
+/* eslint-enable no-param-reassign */

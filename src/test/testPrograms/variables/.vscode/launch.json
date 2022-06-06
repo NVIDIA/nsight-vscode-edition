@@ -7,7 +7,8 @@
             "request": "launch",
             "gdb": "cuda-gdb",
             "program": "${workspaceFolder}/variables",
-            "arguments": ""
+            "logFile": "${workspaceFolder}/.rubicon_log",
+            "verboseLogging": true
         }
 
     ]

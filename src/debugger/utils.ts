@@ -340,7 +340,7 @@ export async function readOsInfo(): Promise<types.OsInfo> {
                     break;
                 }
             } catch (error) {
-                const message = `Failed to read OS release file: ${error.message}`;
+                const message = `Failed to read OS release file: ${(error as Error).message}`;
                 logger.error(message);
             }
         }

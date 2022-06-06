@@ -13,7 +13,6 @@
 /* eslint-disable class-methods-use-this */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as vscode from 'vscode';
-import { DebugSession } from 'vscode-debugadapter';
 import { DebugProtocol } from 'vscode-debugprotocol';
 
 import { CudaDebugProtocol } from './debugger/cudaDebugProtocol';
@@ -21,13 +20,16 @@ import { CudaGdbSession } from './debugger/cudaGdbSession';
 import * as types from './debugger/types';
 import { TelemetryService } from './telemetryService';
 import * as utils from './debugger/utils';
+import { attachProcess, pickProcess } from './debugger/processList';
 
 const cudaGdbDebugType = 'cuda-gdb';
 const cudaChangeDebugFocus = 'cuda.changeDebugFocus';
+const cudaAttachProcess = 'cuda.attachProcess';
+const cudaPickProcess = 'cuda.pickProcess';
 
 class InlineDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
     createDebugAdapterDescriptor(session: vscode.DebugSession, executable: vscode.DebugAdapterExecutable | undefined): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
-        const debugSession: DebugSession = new CudaGdbSession();
+        const debugSession = new CudaGdbSession();
         return new vscode.DebugAdapterInlineImplementation(debugSession);
     }
 }
@@ -226,6 +228,8 @@ export function activateDebugController(context: vscode.ExtensionContext, teleme
     context.subscriptions.push(vscode.debug.registerDebugAdapterTrackerFactory(cudaGdbDebugType, debugController));
     // eslint-disable-next-line no-return-await
     context.subscriptions.push(vscode.commands.registerCommand(cudaChangeDebugFocus, async () => await debugController.changeDebugFocus()));
+    context.subscriptions.push(vscode.commands.registerCommand(cudaAttachProcess, async () => attachProcess()));
+    context.subscriptions.push(vscode.commands.registerCommand(cudaPickProcess, async () => pickProcess()));
 }
 
 /* eslint-enable @typescript-eslint/no-unused-vars */
