@@ -20,11 +20,10 @@ import { CudaGdbSession } from './debugger/cudaGdbSession';
 import * as types from './debugger/types';
 import { TelemetryService } from './telemetryService';
 import * as utils from './debugger/utils';
-import { attachProcess, pickProcess } from './debugger/processList';
+import { pickProcess } from './debugger/processList';
 
 const cudaGdbDebugType = 'cuda-gdb';
 const cudaChangeDebugFocus = 'cuda.changeDebugFocus';
-const cudaAttachProcess = 'cuda.attachProcess';
 const cudaPickProcess = 'cuda.pickProcess';
 
 class InlineDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
@@ -228,7 +227,6 @@ export function activateDebugController(context: vscode.ExtensionContext, teleme
     context.subscriptions.push(vscode.debug.registerDebugAdapterTrackerFactory(cudaGdbDebugType, debugController));
     // eslint-disable-next-line no-return-await
     context.subscriptions.push(vscode.commands.registerCommand(cudaChangeDebugFocus, async () => await debugController.changeDebugFocus()));
-    context.subscriptions.push(vscode.commands.registerCommand(cudaAttachProcess, async () => attachProcess()));
     context.subscriptions.push(vscode.commands.registerCommand(cudaPickProcess, async () => pickProcess()));
 }
 

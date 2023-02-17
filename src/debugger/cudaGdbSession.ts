@@ -23,6 +23,7 @@ import {
     MIVarCreateResponse,
     MIStackListVariablesResponse,
     MIVarChild,
+    sendExecFinish,
     sendVarCreate,
     sendVarListChildren,
     MIVarPrintValues,
@@ -42,6 +43,7 @@ import { DebugProtocol } from 'vscode-debugprotocol';
 
 import * as fs from 'fs';
 import * as util from 'util';
+import * as which from 'which';
 import { CudaDebugProtocol } from './cudaDebugProtocol';
 import { deviceRegisterGroups } from './deviceRegisterGroups.json';
 import * as types from './types';
@@ -94,6 +96,17 @@ class CudaThread extends Thread {
 }
 
 type APIErrorOption = 'stop' | 'hide' | 'ignore';
+
+type CudaGdbPathResult = {
+    kind: 'exists';
+    path: string;
+};
+
+type NoCudaGdbResult = {
+    kind: 'doesNotExist';
+};
+
+type CudaGdbExists = CudaGdbPathResult | NoCudaGdbResult;
 
 export class RegisterData {
     registerGroups: RegisterGroup[];
@@ -163,7 +176,18 @@ interface MICudaInfoDevicesResponse {
 class CudaGdbBackend extends GDBBackend {
     static readonly eventCudaGdbExit: string = 'cudaGdbExit';
 
-    spawn(requestArgs: LaunchRequestArguments | AttachRequestArguments): Promise<void> {
+ sendCommand<T>(command: string): Promise<T> {
+        const miPrefixBreakInsert = "-break-insert";
+        if (command.startsWith(miPrefixBreakInsert)) {
+            const breakInsert = command.slice(0,  miPrefixBreakInsert.length);
+            const flagF = "-f";
+            const breakPointInfo = command.slice(miPrefixBreakInsert.length);
+            command = `${breakInsert} ${flagF} ${breakPointInfo}`;
+        }
+        return super.sendCommand(command);
+    }
+
+    async spawn(requestArgs: CudaLaunchRequestArguments | CudaAttachRequestArguments): Promise<void> {
         const result: Promise<void> = super.spawn(requestArgs);
 
         if (this.proc) {
@@ -583,7 +607,9 @@ export class CudaGdbSession extends GDBDebugSession {
         }
     }
 
-    protected launchRequest(response: DebugProtocol.LaunchResponse, args: CudaLaunchRequestArguments): Promise<void> {
+    protected async launchRequest(response: DebugProtocol.LaunchResponse, args: CudaLaunchRequestArguments): Promise<void> {
+        logger.verbose('Executing launch request');
+
         let logFilePath = args.logFile;
         if (logFilePath && !isAbsolute(logFilePath)) {
             logFilePath = resolve(logFilePath);
@@ -591,23 +617,27 @@ export class CudaGdbSession extends GDBDebugSession {
 
         // Logger setup is handled in the base class
         logger.init((outputEvent: OutputEvent) => this.sendEvent(outputEvent), logFilePath, true);
+        logger.verbose('Logger successfully initialized');
 
         if (process.platform !== 'linux') {
             response.success = false;
             response.message = 'Unable to launch cuda-gdb on non-Linux system';
+            logger.verbose(response.message);
             this.sendErrorResponse(response, 1, response.message);
             return super.launchRequest(response, args);
         }
+        logger.verbose('Confirmed that we are on a Linux system');
 
         const cdtLaunchArgs: LaunchRequestArguments = { ...args };
 
-        cdtLaunchArgs.gdb = args.debuggerPath || 'cuda-gdb';
+        cdtLaunchArgs.gdb = args.debuggerPath;
 
         try {
             CudaGdbSession.configureLaunch(args, cdtLaunchArgs);
         } catch (error) {
             response.success = false;
             response.message = (error as Error).message;
+            logger.verbose(`Failed in configureLaunch() with error "${response.message}"`);
             this.sendErrorResponse(response, 1, response.message);
             return super.launchRequest(response, args);
         }
@@ -616,35 +646,39 @@ export class CudaGdbSession extends GDBDebugSession {
             cdtLaunchArgs.arguments = args.args;
         }
 
-        // if (args.verboseLogging !== undefined) {
-        //     cdtLaunchArgs.verbose = args.verboseLogging;
-        // }
+        const cudaGdbPath = await checkCudaGdb(cdtLaunchArgs.gdb);
+        logger.verbose('cuda-gdb found and accessible');
 
-        let cudaGDBexists = false;
-        if (cdtLaunchArgs.gdb !== undefined) {
-            cudaGDBexists = checkCudaGdb(cdtLaunchArgs.gdb);
-        }
-
-        if (!cudaGDBexists) {
+        if (cudaGdbPath.kind === 'doesNotExist') {
             response.success = false;
             response.message = `Unable to find cuda-gdb in ${cdtLaunchArgs.gdb}`;
+            logger.verbose(`Failed with error ${response.message}`);
             this.sendErrorResponse(response, 1, response.message);
-            return super.launchRequest(response, cdtLaunchArgs);
+        } else {
+            cdtLaunchArgs.gdb = cudaGdbPath.path;
         }
 
         if ('stopAtEntry' in args && args.stopAtEntry) {
             this.stopAtEntry = true;
         }
 
+        logger.verbose('Calling launch request in super class');
         return super.launchRequest(response, cdtLaunchArgs);
     }
 
     protected async attachRequest(response: DebugProtocol.AttachResponse, args: CudaAttachRequestArguments): Promise<void> {
+        logger.verbose('Executing attach request');
         this.isAttach = true;
 
         if (typeof args.processId === 'string') {
-            const processExecName = args.processId.slice(args.processId.indexOf(':') + 1, args.processId.length);
-            args.processId = args.processId.slice(0, args.processId.indexOf(':'));
+            logger.verbose(`Process ID ${args.processId} was given as a string`);
+            let processExecName = args.processId;
+
+            if (args.processId.includes(':')) {
+                processExecName = args.processId.slice(args.processId.indexOf(':') + 1, args.processId.length);
+                args.processId = args.processId.slice(0, args.processId.indexOf(':'));
+            }
+
             const commandProgram = `readlink -e /proc/${args.processId}/exe`;
             const { error, stdout, stderr } = await exec(commandProgram.toString());
             const programPath = `${stdout}`.trim();
@@ -653,23 +687,30 @@ export class CudaGdbSession extends GDBDebugSession {
             if (!programPath) {
                 response.success = false;
                 response.message = `Unable to attach to ${processExecName}`;
+                logger.verbose(`Failed in string PID setup with error ${response.message}`);
                 this.sendErrorResponse(response, 1, response.message);
             }
 
             if (error) {
                 response.success = false;
                 response.message = `Unable to attach to  ${processExecName}, ${error}`;
+                logger.verbose(`Failed in string PID setup with error ${response.message}`);
                 this.sendErrorResponse(response, 1, response.message);
             }
 
             if (stderr) {
                 response.success = false;
                 response.message = `Unable to attach to  ${processExecName} ,${stderr}`;
+                logger.verbose(`Failed in string PID setup with error  ${response.message}`);
                 this.sendErrorResponse(response, 1, response.message);
             }
 
             args.program = programPath;
+
+            logger.verbose('processed process ID as string');
+
         } else if (typeof args.processId === 'number') {
+            logger.verbose('process ID was given as a number');
             // rare case that the process picker is not used and the user manually enters the pid
 
             const commandProgram = `readlink -e /proc/${args.processId}/exe`;
@@ -680,24 +721,30 @@ export class CudaGdbSession extends GDBDebugSession {
             if (!programPath) {
                 response.success = false;
                 response.message = `Unable to attach to process with pid ${args.processId}`;
+                logger.verbose(`Failed in number PID setup with error  ${response.message}`);
                 this.sendErrorResponse(response, 1, response.message);
             }
 
             if (error) {
                 response.success = false;
                 response.message = `Unable to attach to process with pid ${args.processId}, ${error}`;
+                logger.verbose(`Failed in number PID setup with error  ${response.message}`);
                 this.sendErrorResponse(response, 1, response.message);
             }
 
             if (stderr) {
                 response.success = false;
                 response.message = `Unable to attach to process with pid ${args.processId}, ${stderr}`;
+                logger.verbose(`Failed in number PID setup with error  ${response.message}`);
                 this.sendErrorResponse(response, 1, response.message);
             }
 
             args.processId = `${args.processId}`;
             args.program = programPath;
+
+            logger.verbose('processed process ID as number');
         }
+
         let logFilePath = args.logFile;
         if (logFilePath && !isAbsolute(logFilePath)) {
             logFilePath = resolve(logFilePath);
@@ -705,22 +752,30 @@ export class CudaGdbSession extends GDBDebugSession {
 
         // Logger setup is handled in the base class
         logger.init((outputEvent: OutputEvent) => this.sendEvent(outputEvent), logFilePath, true);
+        logger.verbose('Logger successfully initialized');
 
         if (process.platform !== 'linux') {
             response.success = false;
             response.message = 'Unable to launch cuda-gdb on non-Linux system';
+            logger.verbose(response.message);
             this.sendErrorResponse(response, 1, response.message);
             return super.attachRequest(response, args);
         }
+        logger.verbose('Confirmed that we are on a Linux system');
 
         // 0 is requires for cuda-gdb to attach to non-children
-        const ptraceScope = fs.readFileSync('/proc/sys/kernel/yama/ptrace_scope', 'ascii');
-        const ptraceLocked = ptraceScope.trim() !== '0';
+        const ptraceScopeFile = '/proc/sys/kernel/yama/ptrace_scope';
 
-        if (ptraceLocked) {
-            response.success = false;
-            response.message = 'Please try running echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope ';
-            this.sendErrorResponse(response, 1, response.message);
+        if (fs.existsSync(ptraceScopeFile)) {
+            const ptraceScope = fs.readFileSync(ptraceScopeFile, 'ascii');
+            const ptraceLocked = ptraceScope.trim() !== '0';
+
+            if (ptraceLocked) {
+                response.success = false;
+                response.message = 'Please try running echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope ';
+                logger.verbose(response.message);
+                this.sendErrorResponse(response, 1, response.message);
+            }
         }
 
         if (!args.port) {
@@ -735,22 +790,31 @@ export class CudaGdbSession extends GDBDebugSession {
 
         const cdtAttachArgs: AttachRequestArguments = { ...args };
 
-        cdtAttachArgs.gdb = args.debuggerPath || 'cuda-gdb';
+        cdtAttachArgs.gdb = args.debuggerPath;
 
-        CudaGdbSession.configureLaunch(args, cdtAttachArgs);
-
-        let cudaGDBexists = false;
-        if (cdtAttachArgs.gdb !== undefined) {
-            cudaGDBexists = checkCudaGdb(cdtAttachArgs.gdb);
+        try {
+            CudaGdbSession.configureLaunch(args, cdtAttachArgs);
+        } catch (error) {
+            response.success = false;
+            response.message = (error as Error).message;
+            logger.verbose(`Failed in configureLaunch() with error ${response.message}`);
+            this.sendErrorResponse(response, 1, response.message);
+            return super.launchRequest(response, args);
         }
 
-        if (!cudaGDBexists) {
+        const cudaGdbPath = await checkCudaGdb(cdtAttachArgs.gdb);
+        logger.verbose('cuda-gdb found and accessible');
+
+        if (cudaGdbPath.kind === 'doesNotExist') {
             response.success = false;
             response.message = `Unable to find cuda-gdb in ${cdtAttachArgs.gdb}`;
+            logger.verbose(`Failed with error ${response.message}`);
             this.sendErrorResponse(response, 1, response.message);
-            return super.attachRequest(response, cdtAttachArgs);
+        } else {
+            cdtAttachArgs.gdb = cudaGdbPath.path;
         }
 
+        logger.verbose('Attach request completed');
         return super.attachRequest(response, cdtAttachArgs);
     }
 
@@ -948,7 +1012,16 @@ export class CudaGdbSession extends GDBDebugSession {
 
     protected async stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments): Promise<void> {
         await this.preResume();
-        await super.stepOutRequest(response, args);
+        try {
+            await sendExecFinish(this.gdb, args.threadId);
+            this.sendResponse(response);
+        } catch (error) {
+            /* In the case where stepping out results in "Error: "finish" not meaningful in the outermost frame."
+            we do not throw an error because that might be misleading for users. */
+            if (String(error).trim() !== 'Error: "finish" not meaningful in the outermost frame.') {
+                this.sendErrorResponse(response, 1, error instanceof Error ? error.message : String(error));
+            }
+        }
     }
 
     protected async continueRequest(response: DebugProtocol.ContinueResponse, args: DebugProtocol.ContinueArguments): Promise<void> {
@@ -1552,18 +1625,32 @@ function toFixedHex(value: number, width: number): string {
     return `0x${'0'.repeat(paddingSize)}${hexStr}`;
 }
 
-function checkCudaGdb(path: string): boolean {
-    /* eslint-disable global-require */
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const haz = require('haz');
-    /* eslint-enable global-require */
-
-    // the path.endsWith check is for the scenario that the user enters a valid path but one that does not contain cuda-gdb
-    if ((existsSync(path) || existsSync('/usr/local/cuda/bin/cuda-gdb') || haz('cuda-gdb')) && path.endsWith('cuda-gdb')) {
-        return true;
+async function checkCudaGdb(path: string | undefined): Promise<CudaGdbExists> {
+    if (path === undefined) {
+        const res = which('cuda-gdb')
+            .then((cudaGdbPath: string) => {
+                return { kind: 'exists', path: cudaGdbPath } as CudaGdbPathResult;
+            })
+            .catch((error: Error) => {
+                // checks if cuda-gdb exists in the default location
+                const defaultLocation = '/usr/local/cuda/bin/cuda-gdb';
+                if (existsSync(defaultLocation)) {
+                    return { kind: 'exists', path: defaultLocation } as CudaGdbPathResult;
+                }
+                logger.error(`Unable to find cuda-gdb, ${error}`);
+                return { kind: 'doesNotExist' } as NoCudaGdbResult;
+            });
+        return res;
     }
 
-    return false;
+    // the path.endsWith check is for the scenario that the user enters a valid path but one that does not contain cuda-gdb
+    // checks that path is valid and path contains cuda-gdb
+    const isCudaGdbPathValid = existsSync(path) && path.endsWith('cuda-gdb');
+    if (isCudaGdbPathValid) {
+        return { kind: 'exists', path } as CudaGdbPathResult;
+    }
+
+    return { kind: 'doesNotExist' } as NoCudaGdbResult;
 }
 
 /* eslint-enable max-classes-per-file */

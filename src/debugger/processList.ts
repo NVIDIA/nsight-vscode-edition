@@ -7,30 +7,6 @@ interface ProcessItem extends vscode.QuickPickItem {
     pid: number;
 }
 
-export async function attachProcess(): Promise<boolean | undefined> {
-    const result = await chooseProcess();
-
-    if (result !== undefined) {
-        const commandFolder = `readlink -e /proc/${result}/cwd`;
-        const resFolder = await exec(commandFolder.toString());
-        const folder = resFolder.stdout.trim();
-
-        const config = {
-            name: 'CUDA C++: Attach',
-            request: 'attach',
-            type: 'cuda-gdb',
-            port: 4024,
-            processId: result.pid,
-            program: `${folder}/${result.label}`
-        };
-
-        return vscode.debug.startDebugging(folder, config);
-    }
-
-    // eslint-disable-next-line unicorn/no-useless-undefined
-    return undefined;
-}
-
 export async function pickProcess(): Promise<string | undefined> {
     const processToReturn = await chooseProcess();
     const pid = processToReturn?.pid.toString();
@@ -59,37 +35,45 @@ export async function chooseProcess(): Promise<ProcessItem | undefined> {
 
 export async function getAttachItems(): Promise<ProcessItem[]> {
     // these are the indices of the pid information and command name which we need to populate the process picker
-    // sample ps output
-    // UID          PID    PPID  C STIME TTY          TIME CMD
-    // root        1483    1481  0 Mar07 tty1     00:00:04 /usr/lib/xorg/Xorg vt1 -disp
-    // nsanan     47708   47707  5 12:02 pts/4    00:00:12 webpack
-    // 0123456789
-    const { error, stdout, stderr } = await exec('ps -af');
+    // sample ps -af -o uname,pid,time, cmd output
+    // USER         PID     TIME CMD
+    // uname1     13710 00:00:00 bash
+    // uname1     18042 00:00:00  \_ ps -af -o uname,pid,time,cmd
+    // uname1     13361 00:00:00 bash
+    // uname1     13390 00:00:09  \_ /usr/bin/p4v.bin
+    // root        1710 00:00:50 /usr/lib/xorg/Xorg -core :0 -seat seat0 -auth /var/run
+    // root        1713 00:00:00 /sbin/agetty -o -p -- \u --noclear tty1 linux
+
+    const { error, stdout, stderr } = await exec('ps -af -o uname,pid,time,cmd');
     const options = stdout;
 
     if (error || stderr) {
         throw new Error('Unable to select process to attach to');
     }
 
-    const pidStartIdx = 11;
-    const pidEndIdx = 19;
-    const cmdStartIdx = 52;
+    const output = options.split('\n');
 
-    const pidArray = options
-        .split('\n')
-        .map((x: string) => Number.parseInt(x.slice(pidStartIdx, pidEndIdx).trimRight()))
-        .slice(1);
+    // figure out the index where PID ends because all PIDs would end at that index
+    const pidEndIdx = output[0].indexOf('PID') + 3;
 
-    const cmdArray = options
-        .split('\n')
+    // based on the the format ps returns info, the pids would start after the first set of spaces we encounter
+    const pidArray = output.map((x: string) => Number.parseInt(x.slice(x.indexOf(' '), pidEndIdx).trimStart())).slice(1);
+
+    const cmdArray = output
         .map((x: string) => {
-            const fullPathCmdSlice = x.slice(cmdStartIdx, x.length).trimRight();
+            // figuring out the index of the executable based on the last index of ':'
+            const fullPathCmdSlice = x.slice(x.lastIndexOf(':') + 3, x.length).trimStart();
             const execCmdSlice = fullPathCmdSlice.slice(fullPathCmdSlice.lastIndexOf('/') + 1, fullPathCmdSlice.length);
             return execCmdSlice;
         })
         .slice(1);
 
-    const items: ProcessItem[] = pidArray.map((item: number, index: string) => ({ pid: pidArray[index], label: cmdArray[index] }));
+    const username = output.map((x: string) => x.slice(0, x.indexOf(' ')).trimStart()).slice(1);
+
+    const items: ProcessItem[] = pidArray.map((item: number, index: string) => ({ pid: pidArray[index], label: `${username[index]} : ${cmdArray[index]}` }));
     items.sort((a, b) => 0 - (a.label > b.label ? -1 : 1));
-    return items;
+
+    const quickPickList: ProcessItem[] = items.filter((item: ProcessItem) => item.label.trim() !== ':');
+
+    return quickPickList;
 }

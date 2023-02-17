@@ -4,35 +4,6 @@ Nsight Visual Studio Code Edition incorporates third-party components listed bel
 ********************************************************************************
 
 
-async@0.2.10
-Publisher: Caolan McMahon
-Repository: https://github.com/caolan/async
-License: MIT
-License text:
-
-Copyright (c) 2010 Caolan McMahon
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-********************************************************************************
-
-
 cdt-gdb-adapter@0.0.15-next.20210201232200.d3ec2b3.0
 Publisher: Eclipse CDT
 Repository: https://github.com/eclipse-cdt/cdt-gdb-adapter
@@ -320,7 +291,7 @@ version(s), and exceptions or additional permissions here}."
 ********************************************************************************
 
 
-debug@4.3.4
+debug@4.3.3
 Publisher: Josh Junon
 Repository: https://github.com/debug-js/debug
 License: MIT
@@ -400,63 +371,27 @@ IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ********************************************************************************
 
 
-haz@0.1.0
-Publisher: P'unk Avenue LLC
-Repository: https://github.com/punkave/haz
-License: MIT
+isexe@2.0.0
+Publisher: Isaac Z. Schlueter
+Repository: https://github.com/isaacs/isexe
+License: ISC
 License text:
 
-# haz
+The ISC License
 
-<a href="http://apostrophenow.org/"><img src="https://raw.github.com/punkave/haz/master/logos/logo-box-madefor.png" align="right" /></a>
+Copyright (c) Isaac Z. Schlueter and Contributors
 
-Determines if a program exists in the PATH environment variable. Cross platform, including support for checking likely executable file extensions on Windows. Available in synchronous and asynchronous versions. Thorough unit tests included.
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
 
-## Installation
-
-    npm install haz
-
-## Usage
-
-Here's a synchronous example:
-
-```javascript
-var haz = require('haz');
-
-if (haz('convert')) {
-  // Great, use spawn to run imagemagick's convert
-}
-```
-
-And here's an asynchronous example with a callback:
-
-```javascript
-var haz = require('haz');
-
-haz('convert', function(result) {
-  if (result) {
-    // Great, use spawn to run imagemagick's convert
-  }
-});
-```
-
-If you don't pass a callback, it behaves synchronously. Simple, right?
-
-## Tests
-
-    npm test
-
-The tests convince  `haz` that is running in a realistic Windows environment for the Windows tests, and do the same for the Linux/Unix/MacOS/whatever tests.
-
-## About P'unk Avenue and Apostrophe
-
-`haz` was created at [P'unk Avenue](http://punkave.com) for use in many projects built with Apostrophe, an open-source content management system built on node.js. (You don't need Apostrophe to use `haz`.) If you like `haz` you should definitely [check out apostrophenow.org](http://apostrophenow.org). Also be sure to visit us on [github](http://github.com/punkave).
-
-## Support
-
-Feel free to open issues on [github](http://github.com/punkave/haz).
-
-<a href="http://punkave.com/"><img src="https://raw.github.com/punkave/haz/master/logos/logo-box-builtby.png" /></a>
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ********************************************************************************
 
@@ -486,7 +421,7 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
 ********************************************************************************
 
 
-minimist@1.2.6
+minimist@1.2.5
 Publisher: James Halliday
 Repository: https://github.com/substack/minimist
 License: MIT
@@ -1346,3 +1281,28 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+********************************************************************************
+
+
+which@2.0.2
+Publisher: Isaac Z. Schlueter
+Repository: https://github.com/isaacs/node-which
+License: ISC
+License text:
+
+The ISC License
+
+Copyright (c) Isaac Z. Schlueter and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.

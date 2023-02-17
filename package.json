@@ -1,6 +1,6 @@
 {
     "name": "nsight-vscode-edition",
-    "version": "2022.1.90",
+    "version": "2023.1.0",
     "displayName": "Nsight Visual Studio Code Edition",
     "description": "CUDA development and debugging support for VS Code",
     "publisher": "nvidia",
@@ -35,7 +35,6 @@
         "Programming Languages"
     ],
     "activationEvents": [
-        "onCommand:cuda.attachProcess",
         "onCommand:cuda.changeDebugFocus",
         "onCommand:cuda.pickProcess",
         "onDebug",
@@ -49,11 +48,6 @@
             {
                 "command": "cuda.changeDebugFocus",
                 "title": "Change CUDA debug focus",
-                "category": "CUDA"
-            },
-            {
-                "command": "cuda.attachProcess",
-                "title": "Attach to a CUDA process",
                 "category": "CUDA"
             }
         ],
@@ -293,6 +287,7 @@
         "@types/universal-analytics": "^0.4.5",
         "@types/uuid": "^8.3.4",
         "@types/vscode": "^1.54.0",
+        "@types/which": "^2.0.1",
         "@typescript-eslint/eslint-plugin": "^2.30.0",
         "@typescript-eslint/parser": "^2.30.0",
         "await-spawn": "^4.0.2",
@@ -331,10 +326,10 @@
     "dependencies": {
         "cdt-gdb-adapter": "^0.0.15-next.20210201232200.d3ec2b3.0",
         "fs-extra": "^10.0.1",
-        "haz": "^0.1.0",
         "universal-analytics": "^0.5.3",
         "uuid": "^8.3.2",
         "vscode-debugadapter": "^1.45.0",
-        "vscode-debugprotocol": "^1.45.0"
+        "vscode-debugprotocol": "^1.45.0",
+        "which": "^2.0.2"
     }
 }
