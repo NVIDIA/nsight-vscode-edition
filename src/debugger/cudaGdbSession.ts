@@ -38,8 +38,8 @@ import {
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
 import { resolve, isAbsolute } from 'path';
-import { BreakpointEvent, ErrorDestination, Event, InvalidatedEvent, logger, OutputEvent, Scope, TerminatedEvent, Thread, Variable } from 'vscode-debugadapter';
-import { DebugProtocol } from 'vscode-debugprotocol';
+import { BreakpointEvent, ErrorDestination, Event, InvalidatedEvent, logger, OutputEvent, Scope, TerminatedEvent, Thread, Variable } from '@vscode/debugadapter';
+import { DebugProtocol } from '@vscode/debugprotocol';
 
 import * as fs from 'fs';
 import * as util from 'util';
@@ -176,11 +176,11 @@ interface MICudaInfoDevicesResponse {
 class CudaGdbBackend extends GDBBackend {
     static readonly eventCudaGdbExit: string = 'cudaGdbExit';
 
- sendCommand<T>(command: string): Promise<T> {
-        const miPrefixBreakInsert = "-break-insert";
+    sendCommand<T>(command: string): Promise<T> {
+        const miPrefixBreakInsert = '-break-insert';
         if (command.startsWith(miPrefixBreakInsert)) {
-            const breakInsert = command.slice(0,  miPrefixBreakInsert.length);
-            const flagF = "-f";
+            const breakInsert = command.slice(0, miPrefixBreakInsert.length);
+            const flagF = '-f';
             const breakPointInfo = command.slice(miPrefixBreakInsert.length);
             command = `${breakInsert} ${flagF} ${breakPointInfo}`;
         }
@@ -708,7 +708,6 @@ export class CudaGdbSession extends GDBDebugSession {
             args.program = programPath;
 
             logger.verbose('processed process ID as string');
-
         } else if (typeof args.processId === 'number') {
             logger.verbose('process ID was given as a number');
             // rare case that the process picker is not used and the user manually enters the pid

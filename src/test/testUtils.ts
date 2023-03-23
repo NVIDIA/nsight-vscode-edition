@@ -11,9 +11,9 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { DebugProtocol } from 'vscode-debugprotocol';
+import { DebugProtocol } from '@vscode/debugprotocol';
 import { expect } from 'chai';
-import { DebugClient } from 'vscode-debugadapter-testsupport';
+import { DebugClient } from '@vscode/debugadapter-testsupport';
 import { CudaDebugClient } from './cudaDebugClient';
 import { CudaLaunchRequestArguments } from '../debugger/cudaGdbSession';
 

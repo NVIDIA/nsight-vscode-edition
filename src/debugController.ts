@@ -13,7 +13,7 @@
 /* eslint-disable class-methods-use-this */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as vscode from 'vscode';
-import { DebugProtocol } from 'vscode-debugprotocol';
+import { DebugProtocol } from '@vscode/debugprotocol';
 
 import { CudaDebugProtocol } from './debugger/cudaDebugProtocol';
 import { CudaGdbSession } from './debugger/cudaGdbSession';

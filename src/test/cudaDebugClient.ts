@@ -11,8 +11,8 @@
 
 import * as fs from 'fs';
 import { expect } from 'chai';
-import { DebugClient } from 'vscode-debugadapter-testsupport';
-import { DebugProtocol } from 'vscode-debugprotocol';
+import { DebugClient } from '@vscode/debugadapter-testsupport';
+import { DebugProtocol } from '@vscode/debugprotocol';
 
 export class CudaDebugClient extends DebugClient {
     constructor(debugAdapterPath: string) {

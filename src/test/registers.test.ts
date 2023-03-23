@@ -10,7 +10,7 @@
 \* ---------------------------------------------------------------------------------- */
 
 import { expect } from 'chai';
-import { DebugProtocol } from 'vscode-debugprotocol';
+import { DebugProtocol } from '@vscode/debugprotocol';
 import { TestUtils } from './testUtils';
 
 describe('Register tests', async () => {

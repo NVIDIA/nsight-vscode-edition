@@ -10,7 +10,7 @@
 \* ---------------------------------------------------------------------------------- */
 
 /* eslint-disable max-classes-per-file */
-import { DebugProtocol } from 'vscode-debugprotocol';
+import { DebugProtocol } from '@vscode/debugprotocol';
 import * as types from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-namespace

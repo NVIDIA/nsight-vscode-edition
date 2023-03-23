@@ -13,7 +13,7 @@
 import * as ua from 'universal-analytics';
 import * as uuid from 'uuid';
 import * as vscode from 'vscode';
-import { logger } from 'vscode-debugadapter';
+import { logger } from '@vscode/debugadapter';
 
 import * as types from './debugger/types';
 

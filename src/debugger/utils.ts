@@ -10,7 +10,7 @@
 \* ---------------------------------------------------------------------------------- */
 
 import * as fse from 'fs-extra';
-import { logger } from 'vscode-debugadapter';
+import { logger } from '@vscode/debugadapter';
 import { createInterface } from 'readline';
 
 import * as types from './types';
