@@ -10,7 +10,7 @@
         "name": "NVIDIA"
     },
     "engines": {
-        "vscode": "^1.56.0"
+        "vscode": "^1.76.0"
     },
     "extensionPack": [
         "ms-vscode.cpptools"
