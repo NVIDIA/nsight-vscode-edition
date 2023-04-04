@@ -13,6 +13,11 @@ source code for cdt-gdb-adapter is publicly available at the following address:
 
     https://github.com/eclipse-cdt/cdt-gdb-adapter
 
+We use a specialized fork of cdt-gdb-adapter, which is available at the following
+address:
+
+    https://github.com/NVIDIA/cdt-gdb-adapter
+
 The copyright notices for our third-party dependencies (including cdt-gdb-adapter)
 is listed in third-party-notices.txt located at the root of this repository.
 

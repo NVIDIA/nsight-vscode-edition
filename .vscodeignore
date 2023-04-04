@@ -13,6 +13,7 @@ out/**
 node_modules/**
 src/**
 tools/**
+cdt-gdb-adapter/**
 
 .gitignore
 .vscodeignore

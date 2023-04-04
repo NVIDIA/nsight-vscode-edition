@@ -1,0 +1,3 @@
+[submodule "cdt-gdb-adapter"]
+	path = cdt-gdb-adapter
+	url = https://github.com/NVIDIA/cdt-gdb-adapter.git
