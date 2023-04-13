@@ -1,1 +1,11 @@
-node_modules
+/node_modules
+/out
+/dist
+.rubicon_log
+/nsight-vscode-edition-*.vsix
+/Rubicon-*.zip
+/src/test/testPrograms/frames/frames
+/src/test/testPrograms/launchEnvVars/launchEnvVars
+/src/test/testPrograms/registers/registers_test
+/src/test/testPrograms/varAssign/varAssign
+/src/test/testPrograms/variables/variables
