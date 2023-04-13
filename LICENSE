@@ -1,10 +1,13 @@
 Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
 
 All files in this repository are licensed under terms of the Eclipse Public License
-2.0 (SPDX-License-Identifier: EPL-2.0) with the following exception:
+2.0 (SPDX-License-Identifier: EPL-2.0) with the following exceptions:
 
 - The test source file "variables.cu" (./src/test/testPrograms/variables/variables.cu)
   is licensed under an MIT license (SPDX-License-Identifier: MIT).
+
+- The contents of the script "prepare.js" (./prepare.js) are licensed under an MIT
+  license (SPDX-License-Identifier: MIT).
 
 The terms of the MIT and EPL 2.0 license are listed at the end of this file.
 
