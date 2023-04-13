@@ -322,7 +322,8 @@
         "vsce": "^1.87.0",
         "webpack": "^5.70.0",
         "webpack-cli": "^4.9.2",
-        "yargs": "^17.4.0"
+        "yargs": "^17.4.0",
+        "yarn": "^1.22.19"
     },
     "dependencies": {
         "@vscode/debugadapter": "^1.59.0",
