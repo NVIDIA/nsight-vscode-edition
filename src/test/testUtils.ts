@@ -104,21 +104,22 @@ export class TestUtils {
         return dc;
     }
 
-    static async getLaunchArguments(testProgram: string): Promise<CudaLaunchRequestArguments> {
+    static async getLaunchArguments(testProgram: string, args?: string): Promise<CudaLaunchRequestArguments> {
         const testProgramPath = TestUtils.getTestProgram(testProgram);
         const logFilePath = path.resolve(path.dirname(testProgramPath), '.rubicon_log');
 
         return {
             program: testProgramPath,
+            args,
             verboseLogging: true,
             logFile: logFilePath,
             onAPIError: 'stop'
         };
     }
 
-    static async launchDebugger(testProgram: string): Promise<CudaDebugClient> {
+    static async launchDebugger(testProgram: string, args?: string): Promise<CudaDebugClient> {
         const dc = await this.createDebugClient();
-        const launchArguments = await this.getLaunchArguments(testProgram);
+        const launchArguments = await this.getLaunchArguments(testProgram, args);
 
         await dc.launchRequest(launchArguments);
 

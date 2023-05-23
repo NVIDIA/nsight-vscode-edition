@@ -1,6 +1,6 @@
 {
     "name": "nsight-vscode-edition",
-    "version": "2023.1.0",
+    "version": "2023.2.0",
     "displayName": "Nsight Visual Studio Code Edition",
     "description": "CUDA development and debugging support for VS Code",
     "publisher": "nvidia",
@@ -44,6 +44,42 @@
     ],
     "main": "./dist/extension",
     "contributes": {
+        "taskDefinitions": [
+            {
+                "type": "shell",
+                "required": [
+                    "type",
+                    "command",
+                    "label"
+                ],
+                "properties": {
+                    "label": {
+                        "type": "string"
+                    },
+                    "command": {
+                        "type": "string"
+                    },
+                    "username": {
+                        "type": "string"
+                    },
+                    "host": {
+                        "type": "string"
+                    },
+                    "port": {
+                        "type": "string"
+                    },
+                    "executable": {
+                        "type": "string"
+                    },
+                    "remoteExecutable": {
+                        "type": "string"
+                    },
+                    "executableBinaryName": {
+                        "type": "string"
+                    }
+                }
+            }
+        ],
         "commands": [
             {
                 "command": "cuda.changeDebugFocus",
@@ -93,7 +129,7 @@
                             },
                             "program": {
                                 "type": "string",
-                                "description": "",
+                                "description": "Path to the program to debug.",
                                 "default": "${workspaceFolder}/a.out"
                             },
                             "args": {
@@ -103,12 +139,13 @@
                             },
                             "verboseLogging": {
                                 "type": "boolean",
-                                "description": "Produce verbose log output",
+                                "description": "Produce verbose log output.",
                                 "default": false
                             },
                             "logFile": {
                                 "type": "string",
-                                "description": "Absolute path to the file to log interaction with cuda-gdb."
+                                "description": "Absolute path to the file to log interaction with cuda-gdb.",
+                                "default": "${workspaceFolder}/log.txt"
                             },
                             "initCommands": {
                                 "type": "array",
@@ -143,9 +180,35 @@
                                 "description": "Absolute path to a file containing VAR=VALUE lines to specify environment variables.",
                                 "default": ""
                             },
+                            "environment": {
+                                "type": "array",
+                                "description": "Array containing objects that specify environment variables.",
+                                "default": "{}",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            },
                             "cwd": {
                                 "type": "string",
                                 "description": "The current working directory (cwd) for the debuggee process.",
+                                "default": ""
+                            },
+                            "sysroot": {
+                                "type": "string",
+                                "description": "Local directory with copies of target libraries.",
+                                "default": ""
+                            },
+                            "additionalSOLibSearchPath": {
+                                "type": "string",
+                                "description": "Directory where the debugger searches for shared libraries.",
                                 "default": ""
                             }
                         }
@@ -161,24 +224,24 @@
                             },
                             "program": {
                                 "type": "string",
-                                "description": "",
+                                "description": "Path to the program to debug.",
                                 "default": "${workspaceFolder}/a.out"
                             },
                             "port": {
                                 "type": "number",
-                                "description": "Port to use when attaching"
+                                "description": "Port to use when attaching."
                             },
                             "processId": {
                                 "anyOf": [
                                     {
                                         "type": "number",
                                         "default": "${command:cuda.pickProcess}",
-                                        "description": "The pid of the process to attach to"
+                                        "description": "The pid of the process to attach to."
                                     },
                                     {
                                         "type": "string",
                                         "default": "${command:cuda.pickProcess}",
-                                        "description": "The pid of the process to attach to"
+                                        "description": "The pid of the process to attach to."
                                     }
                                 ]
                             },
@@ -189,12 +252,13 @@
                             },
                             "verboseLogging": {
                                 "type": "boolean",
-                                "description": "Produce verbose log output",
+                                "description": "Produce verbose log output.",
                                 "default": false
                             },
                             "logFile": {
                                 "type": "string",
-                                "description": "Absolute path to the file to log interaction with cuda-gdb."
+                                "description": "Absolute path to the file to log interaction with cuda-gdb.",
+                                "default": "${workspaceFolder}/log.txt"
                             },
                             "initCommands": {
                                 "type": "array",
@@ -218,6 +282,37 @@
                                 ],
                                 "description": "Return a warning if any driver API or runtime API indicates an error.",
                                 "default": "hide"
+                            },
+                            "envFile": {
+                                "type": "string",
+                                "description": "Absolute path to a file containing VAR=VALUE lines to specify environment variables.",
+                                "default": ""
+                            },
+                            "environment": {
+                                "type": "array",
+                                "description": "Array containing objects that specify environment variables.",
+                                "default": "{}",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "sysroot": {
+                                "type": "string",
+                                "description": "Local directory with copies of target libraries.",
+                                "default": ""
+                            },
+                            "additionalSOLibSearchPath": {
+                                "type": "string",
+                                "description": "Directory where the debugger searches for shared libraries.",
+                                "default": ""
                             }
                         }
                     }
@@ -253,6 +348,391 @@
                             "name": "CUDA C++: Attach",
                             "type": "cuda-gdb",
                             "request": "attach"
+                        }
+                    }
+                ]
+            },
+            {
+                "type": "cuda-gdbserver",
+                "label": "CUDA C++ (CUDA-GDBSERVER)",
+                "languages": [
+                    "c",
+                    "cpp",
+                    "cuda-cpp"
+                ],
+                "program": "./out/debugger/cudaGdbAdapter.js",
+                "runtime": "node",
+                "configurationAttributes": {
+                    "launch": {
+                        "type": "object",
+                        "required": [
+                            "program"
+                        ],
+                        "properties": {
+                            "debuggerPath": {
+                                "type": "string",
+                                "description": "The path to cuda-gdb. If unspecified, the path will be searched for cuda-gdb.",
+                                "default": "/usr/local/cuda/bin/cuda-gdb"
+                            },
+                            "program": {
+                                "type": "string",
+                                "description": "Path to the program to debug.",
+                                "default": "${workspaceFolder}/a.out"
+                            },
+                            "args": {
+                                "type": "string",
+                                "description": "Command-line arguments to pass to the debuggee.",
+                                "default": ""
+                            },
+                            "verboseLogging": {
+                                "type": "boolean",
+                                "description": "Produce verbose log output.",
+                                "default": false
+                            },
+                            "logFile": {
+                                "type": "string",
+                                "description": "Absolute path to the file to log interaction with cuda-gdb.",
+                                "default": "${workspaceFolder}/log.txt"
+                            },
+                            "initCommands": {
+                                "type": "array",
+                                "description": "List of GDB commands sent before starting inferior.",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "default": []
+                            },
+                            "stopAtEntry": {
+                                "type": "boolean",
+                                "description": "Break on the first instruction of the debuggee.",
+                                "default": false
+                            },
+                            "breakOnLaunch": {
+                                "type": "boolean",
+                                "description": "Break on the first instruction of every launched kernel.",
+                                "default": false
+                            },
+                            "onAPIError": {
+                                "type": "string",
+                                "enum": [
+                                    "hide",
+                                    "ignore",
+                                    "stop"
+                                ],
+                                "description": "Return a warning if any driver API or runtime API indicates an error.",
+                                "default": "hide"
+                            },
+                            "envFile": {
+                                "type": "string",
+                                "description": "Absolute path to a file containing VAR=VALUE lines to specify environment variables.",
+                                "default": ""
+                            },
+                            "environment": {
+                                "type": "array",
+                                "description": "Array containing objects that specify environment variables.",
+                                "default": "{}",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "cwd": {
+                                "type": "string",
+                                "description": "The current working directory (cwd) for the debuggee process.",
+                                "default": []
+                            },
+                            "target": {
+                                "type": "object",
+                                "description": "Cuda-gdbserver target to connect to.",
+                                "properties": {
+                                    "type": {
+                                        "type": "string",
+                                        "description": "Type of debugging session.",
+                                        "default": "remote"
+                                    },
+                                    "parameters": {
+                                        "type": "array",
+                                        "description": "Parameters of the remote session.",
+                                        "default": "[`${localhost}:{port}`]"
+                                    },
+                                    "host": {
+                                        "type": "string",
+                                        "description": "Target host to connect to.",
+                                        "default": "localhost"
+                                    },
+                                    "port": {
+                                        "type": "string",
+                                        "description": "Target port to connect to.",
+                                        "default": "9999"
+                                    },
+                                    "connectCommands": {
+                                        "type": "array",
+                                        "description": "Target connect commands.",
+                                        "default": "[]"
+                                    }
+                                }
+                            },
+                            "server": {
+                                "type": "string",
+                                "description": "Type of target server.",
+                                "default": "cuda-gdbserver"
+                            },
+                            "imageAndSymbols": {
+                                "type": "object",
+                                "description": "Image/Symbol file details to load at given offsets.",
+                                "default": ""
+                            },
+                            "preRunCommands": {
+                                "type": "array",
+                                "description": "[optional] Commands to execute between loading image/symbols and loading target.",
+                                "default": "[]"
+                            },
+                            "sysroot": {
+                                "type": "string",
+                                "description": "Local directory with copies of target libraries.",
+                                "default": ""
+                            },
+                            "additionalSOLibSearchPath": {
+                                "type": "string",
+                                "description": "Directory where the debugger searches for shared libraries.",
+                                "default": ""
+                            }
+                        }
+                    }
+                },
+                "initialConfigurations": [
+                    {
+                        "name": "CUDA GDB Server: Launch",
+                        "type": "cuda-gdbserver",
+                        "request": "launch",
+                        "server": "cuda-gdbserver",
+                        "program": "",
+                        "target": {
+                            "host": "localhost",
+                            "port": "12345"
+                        },
+                        "sysroot": "",
+                        "debuggerPath": ""
+                    }
+                ],
+                "configurationSnippets": [
+                    {
+                        "label": "CUDA GDB Server: Launch",
+                        "description": "Launch a CUDA program in debug mode",
+                        "body": {
+                            "name": "CUDA GDB Server: Launch",
+                            "type": "cuda-gdbserver",
+                            "request": "launch",
+                            "server": "cuda-gdbserver",
+                            "program": "",
+                            "target": {
+                                "host": "localhost",
+                                "port": "12345"
+                            },
+                            "sysroot": "",
+                            "debuggerPath": ""
+                        }
+                    }
+                ]
+            },
+            {
+                "type": "cuda-qnx-gdbserver",
+                "label": "CUDA C++ QNX (CUDA-GDBSERVER)",
+                "languages": [
+                    "c",
+                    "cpp",
+                    "cuda-cpp"
+                ],
+                "program": "./out/debugger/cudaGdbAdapter.js",
+                "runtime": "node",
+                "configurationAttributes": {
+                    "launch": {
+                        "type": "object",
+                        "required": [
+                            "program"
+                        ],
+                        "properties": {
+                            "debuggerPath": {
+                                "type": "string",
+                                "description": "The path to cuda-gdb. If unspecified, the path will be searched for cuda-gdb.",
+                                "default": "/usr/local/cuda/bin/cuda-gdb"
+                            },
+                            "program": {
+                                "type": "string",
+                                "description": "Path to the program to debug.",
+                                "default": "${workspaceFolder}/a.out"
+                            },
+                            "args": {
+                                "type": "string",
+                                "description": "Command-line arguments to pass to the debuggee.",
+                                "default": ""
+                            },
+                            "verboseLogging": {
+                                "type": "boolean",
+                                "description": "Produce verbose log output.",
+                                "default": false
+                            },
+                            "logFile": {
+                                "type": "string",
+                                "description": "Absolute path to the file to log interaction with cuda-gdb.",
+                                "default": "${workspaceFolder}/log.txt"
+                            },
+                            "initCommands": {
+                                "type": "array",
+                                "description": "List of GDB commands sent before starting inferior.",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "default": []
+                            },
+                            "stopAtEntry": {
+                                "type": "boolean",
+                                "description": "Break on the first instruction of the debuggee.",
+                                "default": false
+                            },
+                            "breakOnLaunch": {
+                                "type": "boolean",
+                                "description": "Break on the first instruction of every launched kernel.",
+                                "default": false
+                            },
+                            "onAPIError": {
+                                "type": "string",
+                                "enum": [
+                                    "hide",
+                                    "ignore",
+                                    "stop"
+                                ],
+                                "description": "Return a warning if any driver API or runtime API indicates an error.",
+                                "default": "hide"
+                            },
+                            "envFile": {
+                                "type": "string",
+                                "description": "Absolute path to a file containing VAR=VALUE lines to specify environment variables.",
+                                "default": ""
+                            },
+                            "environment": {
+                                "type": "array",
+                                "description": "Array containing objects that specify environment variables.",
+                                "default": "{}",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "value": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "cwd": {
+                                "type": "string",
+                                "description": "The current working directory (cwd) for the debuggee process.",
+                                "default": []
+                            },
+                            "target": {
+                                "type": "object",
+                                "description": "Cuda-gdbserver target to connect to.",
+                                "properties": {
+                                    "type": {
+                                        "type": "string",
+                                        "description": "Type of debugging session.",
+                                        "default": "remote"
+                                    },
+                                    "parameters": {
+                                        "type": "array",
+                                        "description": "Parameters of the remote session.",
+                                        "default": "[`${localhost}:{port}`]"
+                                    },
+                                    "host": {
+                                        "type": "string",
+                                        "description": "Target host to connect to.",
+                                        "default": "localhost"
+                                    },
+                                    "port": {
+                                        "type": "string",
+                                        "description": "Target port to connect to.",
+                                        "default": "9999"
+                                    },
+                                    "connectCommands": {
+                                        "type": "array",
+                                        "description": "Target connect commands.",
+                                        "default": "[]"
+                                    }
+                                }
+                            },
+                            "server": {
+                                "type": "string",
+                                "description": "Type of target server.",
+                                "default": "cuda-gdbserver"
+                            },
+                            "imageAndSymbols": {
+                                "type": "object",
+                                "description": "Image/Symbol file details to load at given offsets.",
+                                "default": ""
+                            },
+                            "preRunCommands": {
+                                "type": "array",
+                                "description": "[optional] Commands to execute between loading image/symbols and loading target.",
+                                "default": "[]"
+                            },
+                            "sysroot": {
+                                "type": "string",
+                                "description": "Local directory with copies of target libraries.",
+                                "default": ""
+                            },
+                            "additionalSOLibSearchPath": {
+                                "type": "string",
+                                "description": "Directory where the debugger searches for shared libraries.",
+                                "default": ""
+                            },
+                            "executableUploadPath": {
+                                "type" :"string",
+                                "description": "Path to upload the file to on the QNX system",
+                                "default": ""
+                            }
+                        }
+                    }
+                },
+                "initialConfigurations": [
+                    {
+                        "name": "CUDA QNX GDB Server: Launch",
+                        "type": "cuda-qnx-gdbserver",
+                        "request": "launch",
+                        "server": "cuda-gdbserver",
+                        "program": "",
+                        "target": {
+                            "host": "localhost",
+                            "port": "12345"
+                        },
+                        "sysroot": "",
+                        "debuggerPath": ""
+                    }
+                ],
+                "configurationSnippets": [
+                    {
+                        "label": "CUDA QNX GDB Server: Launch",
+                        "description": "Launch a CUDA program in debug mode",
+                        "body": {
+                            "name": "CUDA GDB Server: Launch",
+                            "type": "cuda-qnx-gdbserver",
+                            "request": "launch",
+                            "server": "cuda-gdbserver",
+                            "program": "",
+                            "target": {
+                                "host": "localhost",
+                                "port": "12345"
+                            },
+                            "sysroot": "",
+                            "debuggerPath": ""
                         }
                     }
                 ]

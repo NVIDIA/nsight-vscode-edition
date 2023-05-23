@@ -4,6 +4,8 @@
 .rubicon_log
 /nsight-vscode-edition-*.vsix
 /Rubicon-*.zip
+/src/test/testPrograms/driverApis/driverApis
+/src/test/testPrograms/driverApis/kernel.fatbin
 /src/test/testPrograms/frames/frames
 /src/test/testPrograms/launchEnvVars/launchEnvVars
 /src/test/testPrograms/registers/registers_test

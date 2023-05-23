@@ -17,19 +17,33 @@ import { DebugProtocol } from '@vscode/debugprotocol';
 
 import { CudaDebugProtocol } from './debugger/cudaDebugProtocol';
 import { CudaGdbSession } from './debugger/cudaGdbSession';
+import { CudaGdbServerSession } from './debugger/cudaGdbServerSession';
+import { CudaQnxGdbServerSession } from './debugger/cudaQnxGdbServerSession';
 import * as types from './debugger/types';
 import { TelemetryService } from './telemetryService';
 import * as utils from './debugger/utils';
 import { pickProcess } from './debugger/processList';
 
+
 const cudaGdbDebugType = 'cuda-gdb';
+const cudaGdbServerType = 'cuda-gdbserver';
+const cudaQnxGdbServerType = 'cuda-qnx-gdbserver';
 const cudaChangeDebugFocus = 'cuda.changeDebugFocus';
 const cudaPickProcess = 'cuda.pickProcess';
 
 class InlineDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
     createDebugAdapterDescriptor(session: vscode.DebugSession, executable: vscode.DebugAdapterExecutable | undefined): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
-        const debugSession = new CudaGdbSession();
-        return new vscode.DebugAdapterInlineImplementation(debugSession);
+        if (session.type === cudaGdbServerType) {
+            const debugServerSession = new CudaGdbServerSession();
+            return new vscode.DebugAdapterInlineImplementation(debugServerSession);
+            // eslint-disable-next-line no-else-return
+        } else if (session.type === cudaQnxGdbServerType ){
+            const debugQNXServerSession = new CudaQnxGdbServerSession();
+            return new vscode.DebugAdapterInlineImplementation(debugQNXServerSession);
+        } else {
+            const debugSession = new CudaGdbSession();
+            return new vscode.DebugAdapterInlineImplementation(debugSession);
+        }
     }
 }
 
@@ -147,7 +161,7 @@ class CudaDebugController implements vscode.Disposable, vscode.DebugAdapterTrack
         vscode.debug.onDidChangeActiveDebugSession((session: vscode.DebugSession | undefined) => {
             if (session === undefined) {
                 this.focusStatusBarItem.hide();
-            } else if (session.type === cudaGdbDebugType) {
+            } else if (session.type === cudaGdbDebugType || session.type === cudaGdbServerType || session.type === cudaQnxGdbServerType) {
                 this.focusStatusBarItem.show();
             }
         });
@@ -219,12 +233,18 @@ class CudaDebugController implements vscode.Disposable, vscode.DebugAdapterTrack
 
 export function activateDebugController(context: vscode.ExtensionContext, telemetry: TelemetryService): void {
     const cudaGdbFactory: vscode.DebugAdapterDescriptorFactory = new InlineDebugAdapterFactory();
+
     context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory(cudaGdbDebugType, cudaGdbFactory));
+    context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory(cudaGdbServerType, cudaGdbFactory));
+    context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory(cudaQnxGdbServerType, cudaGdbFactory));
 
     const debugController: CudaDebugController = new CudaDebugController(context, telemetry);
     context.subscriptions.push(debugController);
 
     context.subscriptions.push(vscode.debug.registerDebugAdapterTrackerFactory(cudaGdbDebugType, debugController));
+    context.subscriptions.push(vscode.debug.registerDebugAdapterTrackerFactory(cudaGdbServerType, debugController));
+    context.subscriptions.push(vscode.debug.registerDebugAdapterTrackerFactory(cudaQnxGdbServerType, debugController));
+
     // eslint-disable-next-line no-return-await
     context.subscriptions.push(vscode.commands.registerCommand(cudaChangeDebugFocus, async () => await debugController.changeDebugFocus()));
     context.subscriptions.push(vscode.commands.registerCommand(cudaPickProcess, async () => pickProcess()));

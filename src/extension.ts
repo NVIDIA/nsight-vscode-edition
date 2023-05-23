@@ -17,6 +17,8 @@ import { activateDebugController } from './debugController';
 import { OsInfo } from './debugger/types';
 import { readOsInfo } from './debugger/utils';
 import { TelemetryService } from './telemetryService';
+import { AutoStartTaskProvider } from './autoStartTaskProvider';
+
 
 const UA_TELEMETRY_ID = 'UA-59254929-59';
 
@@ -29,6 +31,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const hostOsInfo: OsInfo = await readOsInfo();
         telemetry.trackSystemInfo('host', 'activate', { os: hostOsInfo });
     }
+
+    context.subscriptions.push(vscode.tasks.registerTaskProvider('Autostart' , new AutoStartTaskProvider()));
 
     activateDebugController(context, telemetry);
 }

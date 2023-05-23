@@ -95,7 +95,12 @@ class CudaThread extends Thread {
     }
 }
 
-type APIErrorOption = 'stop' | 'hide' | 'ignore';
+export type APIErrorOption = 'stop' | 'hide' | 'ignore';
+
+type Environment = {
+    name: string;
+    value: string;
+};
 
 type CudaGdbPathResult = {
     kind: 'exists';
@@ -144,6 +149,9 @@ export interface CudaLaunchRequestArguments extends LaunchRequestArguments {
     onAPIError?: APIErrorOption;
     envFile?: string;
     stopAtEntry?: boolean;
+    sysroot?: string;
+    additionalSOLibSearchPath?: string;
+    environment?: Environment[];
 }
 
 export interface CudaAttachRequestArguments extends AttachRequestArguments {
@@ -156,6 +164,9 @@ export interface CudaAttachRequestArguments extends AttachRequestArguments {
     processId: string;
     port: number;
     address: string;
+    sysroot?: string;
+    additionalSOLibSearchPath?: string;
+    environment?: Environment[];
 }
 
 interface RegisterNameValuePair {
@@ -173,7 +184,7 @@ interface MICudaInfoDevicesResponse {
     };
 }
 
-class CudaGdbBackend extends GDBBackend {
+export class CudaGdbBackend extends GDBBackend {
     static readonly eventCudaGdbExit: string = 'cudaGdbExit';
 
     sendCommand<T>(command: string): Promise<T> {
@@ -188,7 +199,7 @@ class CudaGdbBackend extends GDBBackend {
     }
 
     async spawn(requestArgs: CudaLaunchRequestArguments | CudaAttachRequestArguments): Promise<void> {
-        const result: Promise<void> = super.spawn(requestArgs);
+        await super.spawn(requestArgs);
 
         if (this.proc) {
             this.proc.on('exit', (code: number, signal: string) => {
@@ -197,7 +208,13 @@ class CudaGdbBackend extends GDBBackend {
             });
         }
 
-        return result;
+        if (requestArgs.sysroot) {
+            requestArgs.initCommands?.push(`set sysroot ${requestArgs.sysroot}`);
+        }
+
+        if (requestArgs.additionalSOLibSearchPath) {
+            requestArgs.initCommands?.push(`set solib-search-path ${requestArgs.additionalSOLibSearchPath}`);
+        }
     }
 }
 
@@ -624,7 +641,9 @@ export class CudaGdbSession extends GDBDebugSession {
             response.message = 'Unable to launch cuda-gdb on non-Linux system';
             logger.verbose(response.message);
             this.sendErrorResponse(response, 1, response.message);
-            return super.launchRequest(response, args);
+            await super.launchRequest(response, args);
+
+            return;
         }
         logger.verbose('Confirmed that we are on a Linux system');
 
@@ -639,7 +658,9 @@ export class CudaGdbSession extends GDBDebugSession {
             response.message = (error as Error).message;
             logger.verbose(`Failed in configureLaunch() with error "${response.message}"`);
             this.sendErrorResponse(response, 1, response.message);
-            return super.launchRequest(response, args);
+            await super.launchRequest(response, args);
+
+            return;
         }
 
         if (args.args !== undefined) {
@@ -647,23 +668,25 @@ export class CudaGdbSession extends GDBDebugSession {
         }
 
         const cudaGdbPath = await checkCudaGdb(cdtLaunchArgs.gdb);
-        logger.verbose('cuda-gdb found and accessible');
 
         if (cudaGdbPath.kind === 'doesNotExist') {
             response.success = false;
             response.message = `Unable to find cuda-gdb in ${cdtLaunchArgs.gdb}`;
             logger.verbose(`Failed with error ${response.message}`);
             this.sendErrorResponse(response, 1, response.message);
-        } else {
-            cdtLaunchArgs.gdb = cudaGdbPath.path;
+
+            return;
         }
+
+        logger.verbose('cuda-gdb found and accessible');
+        cdtLaunchArgs.gdb = cudaGdbPath.path;
 
         if ('stopAtEntry' in args && args.stopAtEntry) {
             this.stopAtEntry = true;
         }
 
         logger.verbose('Calling launch request in super class');
-        return super.launchRequest(response, cdtLaunchArgs);
+        await super.launchRequest(response, cdtLaunchArgs);
     }
 
     protected async attachRequest(response: DebugProtocol.AttachResponse, args: CudaAttachRequestArguments): Promise<void> {
@@ -758,7 +781,9 @@ export class CudaGdbSession extends GDBDebugSession {
             response.message = 'Unable to launch cuda-gdb on non-Linux system';
             logger.verbose(response.message);
             this.sendErrorResponse(response, 1, response.message);
-            return super.attachRequest(response, args);
+            await super.attachRequest(response, args);
+
+            return;
         }
         logger.verbose('Confirmed that we are on a Linux system');
 
@@ -798,7 +823,9 @@ export class CudaGdbSession extends GDBDebugSession {
             response.message = (error as Error).message;
             logger.verbose(`Failed in configureLaunch() with error ${response.message}`);
             this.sendErrorResponse(response, 1, response.message);
-            return super.launchRequest(response, args);
+            await super.launchRequest(response, args);
+
+            return;
         }
 
         const cudaGdbPath = await checkCudaGdb(cdtAttachArgs.gdb);
@@ -814,7 +841,7 @@ export class CudaGdbSession extends GDBDebugSession {
         }
 
         logger.verbose('Attach request completed');
-        return super.attachRequest(response, cdtAttachArgs);
+        await super.attachRequest(response, cdtAttachArgs);
     }
 
     protected static getLaunchEnvVars(pathToEnvFile: string): LaunchEnvVarSpec[] {
@@ -893,6 +920,10 @@ export class CudaGdbSession extends GDBDebugSession {
 
         if (args.onAPIError) {
             cdtArgs.initCommands.push(`set cuda api_failures ${args.onAPIError}`);
+        }
+
+        if (args.environment) {
+            setEnvVars(args.environment);
         }
     }
 
@@ -1624,15 +1655,18 @@ function toFixedHex(value: number, width: number): string {
     return `0x${'0'.repeat(paddingSize)}${hexStr}`;
 }
 
-async function checkCudaGdb(path: string | undefined): Promise<CudaGdbExists> {
+export async function checkCudaGdb(path: string | undefined, isQNX = false): Promise<CudaGdbExists> {
+    const binaryName = isQNX ? 'cuda-qnx-gdb' : 'cuda-gdb';
+
     if (path === undefined) {
-        const res = which('cuda-gdb')
+        const res = which(binaryName)
             .then((cudaGdbPath: string) => {
                 return { kind: 'exists', path: cudaGdbPath } as CudaGdbPathResult;
             })
             .catch((error: Error) => {
                 // checks if cuda-gdb exists in the default location
-                const defaultLocation = '/usr/local/cuda/bin/cuda-gdb';
+                const defaultLocation = isQNX ? '/usr/local/cuda/bin/cuda-qnx-gdb' : '/usr/local/cuda/bin/cuda-gdb';
+
                 if (existsSync(defaultLocation)) {
                     return { kind: 'exists', path: defaultLocation } as CudaGdbPathResult;
                 }
@@ -1644,12 +1678,18 @@ async function checkCudaGdb(path: string | undefined): Promise<CudaGdbExists> {
 
     // the path.endsWith check is for the scenario that the user enters a valid path but one that does not contain cuda-gdb
     // checks that path is valid and path contains cuda-gdb
-    const isCudaGdbPathValid = existsSync(path) && path.endsWith('cuda-gdb');
+    const isCudaGdbPathValid = existsSync(path) && path.endsWith(binaryName);
     if (isCudaGdbPathValid) {
         return { kind: 'exists', path } as CudaGdbPathResult;
     }
 
     return { kind: 'doesNotExist' } as NoCudaGdbResult;
+}
+
+export function setEnvVars(envVars: Environment[]): void {
+    envVars.forEach((envVarVal) => {
+        process.env[envVarVal.name] = envVarVal.value;
+    });
 }
 
 /* eslint-enable max-classes-per-file */

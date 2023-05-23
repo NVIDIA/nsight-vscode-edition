@@ -1,0 +1,15 @@
+{
+   "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "CUDA: Debug with CUDA-GDB",
+            "type": "cuda-gdb",
+            "request": "launch",
+            "debuggerPath": "/usr/local/cuda/bin/cuda-gdb",
+            "program": "${workspaceFolder}/driverApis",
+            "logFile": "${workspaceFolder}/.rubicon_log",
+            "cwd": "${workspaceFolder}",
+            "verboseLogging": true
+        }
+    ]
+}
