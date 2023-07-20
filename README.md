@@ -96,11 +96,11 @@ and productivity enhancements.
  by creating a  [launch configuration](https://docs.nvidia.com/nsight-visual-studio-code-edition/cuda-debugger/index.html#walkthrough-create-launch-config) to launch and debug your application, or <br>
 an [attach configuration](https://docs.nvidia.com/nsight-visual-studio-code-edition/cuda-debugger/index.html#walkthrough-attach-create-launch-config) if the target application is already running
 
-![Create launch configuration](nsight-debug-config.gif)
+![Create launch configuration](images/nsight-debug-config.gif)
 
 **Start debugging!**
 
-![Start debugging](nsight-debug.gif)
+![Start debugging](images/nsight-debug.gif)
 
 ## Support
 Reach out to us for feedback and questions via [our developer forum](https://forums.developer.nvidia.com/c/development-tools/nsight-vscode-edition/).
