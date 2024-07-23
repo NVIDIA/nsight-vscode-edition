@@ -8,7 +8,7 @@ provides support for [CUDA](https://developer.nvidia.com/cuda-zone)
 development, including features such as Intellisense, debugging, debugger views,
 and productivity enhancements.
 
-## Benefits
+## Benefits - rare bug fixed
 
 * **Higher Productivity**<br>
   Using smart CUDA auto-code completion features improves the overall
