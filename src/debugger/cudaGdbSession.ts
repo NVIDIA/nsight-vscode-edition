@@ -14,26 +14,29 @@
 
 import {
     AttachRequestArguments,
+    CDTDisassembleArguments,
     FrameReference,
-    ObjectVariableReference,
+    FrameVariableReference,
     GDBBackend,
     GDBDebugSession,
     LaunchRequestArguments,
     MIBreakpointInfo,
-    MIVarCreateResponse,
+    MIDataDisassembleResponse,
     MIStackListVariablesResponse,
     MIVarChild,
+    MIVarCreateResponse,
+    MIVariableInfo,
+    MIVarPrintValues,
+    ObjectVariableReference,
+    sendDataDisassemble,
+    sendExecContinue,
     sendExecFinish,
+    sendExecRun,
+    sendStackListFramesRequest,
+    sendVarAssign,
     sendVarCreate,
     sendVarListChildren,
-    MIVarPrintValues,
-    sendStackListFramesRequest,
-    MIVariableInfo,
-    sendVarUpdate,
-    sendVarAssign,
-    FrameVariableReference,
-    sendExecContinue,
-    sendExecRun
+    sendVarUpdate
 } from 'cdt-gdb-adapter';
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
@@ -67,6 +70,20 @@ class ChangedCudaFocusEvent extends Event implements CudaDebugProtocol.ChangedCu
 
         this.body = {
             focus
+        };
+    }
+}
+
+class SystemInfoEvent extends Event implements CudaDebugProtocol.SystemInfoEvent {
+    body: {
+        systemInfo?: types.SystemInfo;
+    };
+
+    public constructor(systemInfo?: types.SystemInfo) {
+        super(CudaDebugProtocol.Event.systemInfo);
+
+        this.body = {
+            systemInfo
         };
     }
 }
@@ -140,33 +157,30 @@ export interface ContainerObjectReference extends ObjectVariableReference {
         | undefined;
 }
 
-export interface CudaLaunchRequestArguments extends LaunchRequestArguments {
+export interface CudaLaunchOrAttachCommonRequestArguments {
     debuggerPath?: string;
+    miDebuggerPath?: string;
     program: string;
-    args?: string;
+    args?: string | string[];
+    miDebuggerArgs?: string | string[];
     verboseLogging?: boolean;
     breakOnLaunch?: boolean;
     onAPIError?: APIErrorOption;
-    envFile?: string;
-    stopAtEntry?: boolean;
     sysroot?: string;
     additionalSOLibSearchPath?: string;
     environment?: Environment[];
+    testMode?: boolean;
 }
 
-export interface CudaAttachRequestArguments extends AttachRequestArguments {
-    debuggerPath?: string;
-    program: string;
-    args?: string;
-    verboseLogging?: boolean;
-    breakOnLaunch?: boolean;
-    onAPIError?: APIErrorOption;
+export interface CudaLaunchRequestArguments extends LaunchRequestArguments, CudaLaunchOrAttachCommonRequestArguments {
+    envFile?: string;
+    stopAtEntry?: boolean;
+}
+
+export interface CudaAttachRequestArguments extends AttachRequestArguments, CudaLaunchOrAttachCommonRequestArguments {
     processId: string;
     port: number;
     address: string;
-    sysroot?: string;
-    additionalSOLibSearchPath?: string;
-    environment?: Environment[];
 }
 
 interface RegisterNameValuePair {
@@ -177,6 +191,7 @@ interface RegisterNameValuePair {
 interface MICudaInfoDevicesResponse {
     InfoCudaDevicesTable: {
         body: Array<{
+            current: string;
             name: string;
             description: string;
             sm_type: string;
@@ -540,6 +555,14 @@ export class CudaGdbSession extends GDBDebugSession {
 
     protected stopAtEntry = false;
 
+    protected testMode = false;
+
+    protected telemetryInfoSent = false;
+
+    protected getCurrentFocus(): types.CudaFocus | undefined {
+        return this.cudaThread.focus;
+    }
+
     protected createBackend(): GDBBackend {
         const backend: CudaGdbBackend = new CudaGdbBackend();
         const emitter: EventEmitter = backend as EventEmitter;
@@ -578,14 +601,7 @@ export class CudaGdbSession extends GDBDebugSession {
     }
 
     public sendResponse(response: DebugProtocol.Response): void {
-        if (response.command === 'threads') {
-            // Prepend the CUDA 'thread' to the threads list. We handle this here
-            // for simplicity, otherwise we would have to completely override threadsRequest.
-
-            const threadsResponse: DebugProtocol.ThreadsResponse = response as DebugProtocol.ThreadsResponse;
-            threadsResponse.body.threads.unshift(this.cudaThread);
-        }
-
+        // Defined for debugging
         super.sendResponse(response);
     }
 
@@ -612,10 +628,6 @@ export class CudaGdbSession extends GDBDebugSession {
         switch (command) {
             case CudaDebugProtocol.Request.changeCudaFocus:
                 this.changeCudaFocusRequest(response as CudaDebugProtocol.ChangeCudaFocusResponse, args);
-                break;
-
-            case CudaDebugProtocol.Request.systemInfo:
-                this.systemInfoRequest(response as CudaDebugProtocol.SystemInfoResponse);
                 break;
 
             default:
@@ -649,7 +661,7 @@ export class CudaGdbSession extends GDBDebugSession {
 
         const cdtLaunchArgs: LaunchRequestArguments = { ...args };
 
-        cdtLaunchArgs.gdb = args.debuggerPath;
+        cdtLaunchArgs.gdb = args.miDebuggerPath || args.debuggerPath;
 
         try {
             CudaGdbSession.configureLaunch(args, cdtLaunchArgs);
@@ -663,8 +675,18 @@ export class CudaGdbSession extends GDBDebugSession {
             return;
         }
 
-        if (args.args !== undefined) {
-            cdtLaunchArgs.arguments = args.args;
+        let debuggerCmdLineArgs: string[] = [];
+
+        if (args.args) {
+            debuggerCmdLineArgs = debuggerCmdLineArgs.concat(args.args);
+        }
+
+        if (args.miDebuggerArgs) {
+            debuggerCmdLineArgs = debuggerCmdLineArgs.concat(args.miDebuggerArgs);
+        }
+
+        if (debuggerCmdLineArgs.length > 0) {
+            cdtLaunchArgs.arguments = debuggerCmdLineArgs.join(';');
         }
 
         const cudaGdbPath = await checkCudaGdb(cdtLaunchArgs.gdb);
@@ -684,6 +706,8 @@ export class CudaGdbSession extends GDBDebugSession {
         if ('stopAtEntry' in args && args.stopAtEntry) {
             this.stopAtEntry = true;
         }
+
+        this.testMode = args.testMode ?? false;
 
         logger.verbose('Calling launch request in super class');
         await super.launchRequest(response, cdtLaunchArgs);
@@ -814,7 +838,7 @@ export class CudaGdbSession extends GDBDebugSession {
 
         const cdtAttachArgs: AttachRequestArguments = { ...args };
 
-        cdtAttachArgs.gdb = args.debuggerPath;
+        cdtAttachArgs.gdb = args.miDebuggerPath || args.debuggerPath;
 
         try {
             CudaGdbSession.configureLaunch(args, cdtAttachArgs);
@@ -947,7 +971,7 @@ export class CudaGdbSession extends GDBDebugSession {
         }
     }
 
-    protected handleGDBAsync(resultClass: string, resultData: any): void {
+    protected async handleGDBAsync(resultClass: string, resultData: any): Promise<void> {
         if (resultClass === 'stopped') {
             // If the event originated from CUDA there is a CudaFocus field with:
             //
@@ -994,6 +1018,12 @@ export class CudaGdbSession extends GDBDebugSession {
         }
 
         super.handleGDBAsync(resultClass, resultData);
+
+        if (this.cudaThread.hasFocus && !this.telemetryInfoSent) {
+            this.telemetryInfoSent = true;
+            const systemInfo = await getSystemInfo(this.gdb);
+            this.sendEvent(new SystemInfoEvent(systemInfo));
+        }
     }
 
     protected handleGDBNotify(notifyClass: string, notifyData: any): void {
@@ -1007,6 +1037,8 @@ export class CudaGdbSession extends GDBDebugSession {
 
     protected initializeRequest(response: DebugProtocol.InitializeResponse, args: DebugProtocol.InitializeRequestArguments): void {
         this.clientInitArgs = args;
+        this.forceBreakpointConditions = true;
+
         super.initializeRequest(response, args);
     }
 
@@ -1023,6 +1055,23 @@ export class CudaGdbSession extends GDBDebugSession {
         } catch (error) {
             const message = `Failed to update breakpoint location: ${(error as Error).message}`;
             logger.error(message);
+        }
+    }
+
+    protected async threadsRequest(response: DebugProtocol.ThreadsResponse): Promise<void> {
+        try {
+            await this.updateThreadList();
+
+            // Create a copy of the thread list and add our fake CUDA thread to the end
+            const augmentedThreads: DebugProtocol.Thread[] = [...this.threads, this.cudaThread];
+
+            response.body = {
+                threads: augmentedThreads
+            };
+
+            this.sendResponse(response);
+        } catch (error) {
+            this.sendErrorResponse(response, 1, error instanceof Error ? error.message : String(error));
         }
     }
 
@@ -1059,12 +1108,24 @@ export class CudaGdbSession extends GDBDebugSession {
         await super.continueRequest(response, args);
     }
 
+    protected async trackFocus(func: () => Promise<void>): Promise<void> {
+        const focus: types.CudaFocus | undefined = this.getCurrentFocus();
+        try {
+            await func();
+        } finally {
+            const newFocus: types.CudaFocus | undefined = this.getCurrentFocus();
+            if (!utils.equalsCudaFocus(focus, newFocus)) {
+                this.sendEvent(new ChangedCudaFocusEvent());
+            }
+        }
+    }
+
     protected async evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments): Promise<void> {
         const execFlag = '-exec';
         const backtickFlag = '`';
         const miFlag = '-mi';
 
-        let consoleCommand;
+        let consoleCommand = '';
 
         const expression = args.expression.trimLeft();
 
@@ -1082,8 +1143,11 @@ export class CudaGdbSession extends GDBDebugSession {
             }
         }
         if (consoleCommand) {
-            await this.gdb.sendCommand(consoleCommand);
-            this.sendResponse(response);
+            await this.trackFocus(async () => {
+                await this.gdb.sendCommand(consoleCommand);
+                this.sendResponse(response);
+                this.invalidateState();
+            });
         } else {
             if (args.frameId === undefined) {
                 this.sendErrorResponse(response, 1, 'Missing frame number');
@@ -1551,6 +1615,361 @@ export class CudaGdbSession extends GDBDebugSession {
         this.sendResponse(response);
     }
 
+    // disassemble-request implementation
+    //
+    // The response returned by disassembleRequest must (_exactly_) meet the requested the args.instructionOffset and
+    // args.instructionCount. As such, we disassemble backward and forward until the count of both the preceding and
+    // following instructions are met. If these instructions do not exist, the instructions array is prepended/appended
+    // with instances of a "dummy" instruction to meet these counts.
+    //
+    // To easier understand the the code, ponder the following 3 scenarios (These scenarios are merely examples. They
+    // are based on the requests VS code sends at the time of this writing, but the code makes no assumption limiting
+    // incoming requests to these scenarios (and nor should the reader)):
+    //
+    // - Initial request: args.instructionOffset is -200, args.instructionCount is 400, which means get the current
+    //   instruction, 200 instructions before it and 199 instructions after.
+    //
+    // - Scroll down: args.instructionOffset is 1, instructionCount is 50, which means give me 50 instructions after
+    //   args.memoryReference (the address of the last instruction in the array backing the graphical view) excluding
+    //   the instruction at args.memoryReference (because args.instructionOffset is 1).
+    //
+    // - Scroll up: args.instructionOffset is -50, args.instructionCount is 50, which means give me 50 instructions
+    //   before args.memoryReference (the address of the first instruction in the array backing the graphical view).
+
+    protected async getSassInstructionSize(): Promise<number | undefined> {
+        // We intentionally do not cache this as we could switch GPUs in between stop events.
+
+        const gpuInfo = await getDevicesInfo(this.gdb);
+        const currentDevice = gpuInfo.find((d) => d?.current?.includes('*'));
+        if (!currentDevice?.smType?.startsWith('sm_')) {
+            return;
+        }
+
+        const majorArch = Number.parseInt(currentDevice.smType.slice('sm_'.length, -1));
+        // eslint-disable-next-line consistent-return
+        return majorArch >= 7 ? 16 : 8;
+    }
+
+    static readonly invalidAddress = '??';
+
+    static readonly dummyInstruction: DebugProtocol.DisassembledInstruction = {
+        address: this.invalidAddress,
+        instruction: '??'
+    } as DebugProtocol.DisassembledInstruction;
+
+    protected getInstructionSizeEstimate(): Promise<number | undefined> {
+        if (this.cudaThread.hasFocus) {
+            return this.getSassInstructionSize();
+        }
+
+        // TODO: (Tracked in internal bug) We need to set the correct estimate for other architectures (esp. AArch64) here.
+        const instructionSizeEstimate = 4;
+        return Promise.resolve(instructionSizeEstimate);
+    }
+
+    // Disassemble-backward relies on "-data-disassemble -a". It iteratively goes back until it finds an address belonging to
+    // a known function (i.e. a function with debug information). Once we have this address, we use "-data-disassemble -a" to
+    // disassemble the function.
+    //
+    // - The number of bytes disassemble-backward walks back every iteration is called the "step size" and is determined by
+    //   <#instructions to rewind> * <bytes per instruction>. This is calculated by getBackwardDisassembleStepSize() below.
+    //
+    // - The number of iterations is determined by numberOfBackwardDisassembleSteps below.
+
+    protected async getBackwardDisassembleStepSize(): Promise<number | undefined> {
+        if (this.cudaThread.hasFocus) {
+            const instructionsToRewind = 16;
+            const sassInstructionSize = await this.getSassInstructionSize();
+            return sassInstructionSize ? sassInstructionSize * instructionsToRewind : undefined;
+        }
+
+        // TODO: (Tracked in internal bug) We need to adjust instructionsToRewind for other architectures (than x86_64) here.
+        const instructionsToRewind = 16;
+        const instructionSizeEstimate = await this.getInstructionSizeEstimate();
+        return instructionSizeEstimate ? instructionsToRewind * instructionSizeEstimate : undefined;
+    }
+
+    static readonly numberOfBackwardDisassembleSteps = 16;
+
+    protected async disassembleBackward(instructions: DebugProtocol.DisassembledInstruction[], address: string, backwardDisassembleStepSize: number): Promise<void> {
+        let result: MIDataDisassembleResponse | undefined;
+        for (let i = 1; i <= CudaGdbSession.numberOfBackwardDisassembleSteps; i += 1) {
+            const addressToTry = `(${address})-${i * backwardDisassembleStepSize}`;
+            try {
+                // eslint-disable-next-line no-await-in-loop
+                result = await sendDataDisassemble(this.gdb, addressToTry);
+                logger.verbose(`[Disassemble backward] Succeeded with address ${addressToTry}`);
+                break;
+            } catch (error) {
+                const errorString = error instanceof Error ? error.message : String(error);
+                logger.verbose(`[Disassemble backward] Failed at address: ${addressToTry}, Error: ${errorString}`);
+            }
+        }
+
+        if (result) {
+            this.flattenDisassembledInstructions(result.asm_insns, instructions, 0);
+
+            const lastInstructionFetched = instructions.at(-1)?.address;
+
+            if (lastInstructionFetched !== undefined) {
+                try {
+                    logger.verbose(`[Disassemble backward] Attempting to retrieve instructions in the interim range [${lastInstructionFetched}, ${address}).`);
+                    result = await sendDataDisassemble(this.gdb, { startAddress: lastInstructionFetched, endAddress: address });
+                } catch (error) {
+                    const errorString = error instanceof Error ? error.message : String(error);
+                    logger.verbose(`[Disassemble backward] Failed to fetch the disassembly between ${lastInstructionFetched} and ${address}, Error: ${errorString}`);
+                    result = undefined;
+                }
+
+                if (result) {
+                    this.flattenDisassembledInstructions(result.asm_insns, instructions, 1);
+                }
+            }
+        } else {
+            logger.verbose('[Disassemble backward] Failed.');
+        }
+    }
+
+    protected async disassembleRequest(response: DebugProtocol.DisassembleResponse, args: CDTDisassembleArguments): Promise<void> {
+        logger.verbose(`[Disassemble request] Parameters: ${JSON.stringify(args)}`);
+
+        if (this.cudaThread.hasFocus) {
+            args.excludeRawOpcodes = true;
+        }
+
+        if (args.offset) {
+            this.sendErrorResponse(response, 1, 'Unsupported argument "Offset"');
+            return;
+        }
+
+        if (args.memoryReference === CudaGdbSession.invalidAddress) {
+            logger.verbose(`[Disassemble request] Invalid initial address. Returning ${args.instructionCount} dummy instructions.`);
+
+            response.body = { instructions: new Array(args.instructionCount).fill(CudaGdbSession.dummyInstruction) };
+            this.sendResponse(response);
+            return;
+        }
+
+        let currentInstruction: DebugProtocol.DisassembledInstruction;
+
+        try {
+            const startAddress = `(${args.memoryReference})+${args.offset ?? 0}`;
+            const endAddress = `(${args.memoryReference})+${(args.offset ?? 0) + 1}`;
+
+            const result = await sendDataDisassemble(this.gdb, { startAddress, endAddress });
+
+            const instructions: DebugProtocol.DisassembledInstruction[] = [];
+            this.flattenDisassembledInstructions(result.asm_insns, instructions, 0);
+
+            [currentInstruction] = instructions;
+        } catch (error) {
+            const errorString = error instanceof Error ? error.message : String(error);
+
+            logger.error(`[Disassemble request] Disassembly at the initial address failed: ${errorString}`);
+
+            this.sendErrorResponse(response, 1, errorString);
+            return;
+        }
+
+        let instructions: DebugProtocol.DisassembledInstruction[] = [];
+
+        try {
+            const result = await sendDataDisassemble(this.gdb, currentInstruction.address);
+            this.flattenDisassembledInstructions(result.asm_insns, instructions, 0);
+
+            logger.verbose(`[Disassemble request] "-data-disassemble -a ${currentInstruction.address}" succeeded.`);
+        } catch {
+            logger.error(`[Disassemble request] "-data-disassemble -a ${currentInstruction.address}" failed. Falling back to disassembling from current instruction.`);
+            instructions = [currentInstruction];
+        }
+
+        const indexOfCurrentInsn = instructions.findIndex((i) => i.address === currentInstruction.address);
+
+        if (indexOfCurrentInsn < 0) {
+            logger.error(`[Disassemble request] Unable to locate the initial memory reference in the disassembled instructions.`);
+
+            this.sendErrorResponse(response, 1, 'Reference address not found.');
+            return;
+        }
+
+        const instructionOffset = args.instructionOffset ?? 0;
+        const indexOfSplice = indexOfCurrentInsn + instructionOffset;
+
+        let lastAddressRead = instructions[instructions.length - 1].address;
+
+        let instructionsToSkip = 0;
+
+        if (indexOfSplice < 0) {
+            let instructionDeficit = -indexOfSplice;
+
+            logger.verbose(`[Disassemble request] Need ${instructionDeficit} instructions at the beginning.`);
+
+            const backwardDisassembleStepSize = await this.getBackwardDisassembleStepSize();
+
+            if (!backwardDisassembleStepSize) {
+                logger.error(`[Disassemble request] Backward disassemble step size: ${backwardDisassembleStepSize}`);
+
+                this.sendErrorResponse(response, 1, 'Unable to determine the machine instruction size.');
+                return;
+            }
+
+            logger.verbose(`[Disassemble request] Backward disassemble step size: ${backwardDisassembleStepSize}`);
+
+            while (instructionDeficit > 0) {
+                logger.verbose(`[Disassemble request] Attempting to disassemble backward. Instruction deficit: ${instructionDeficit}`);
+
+                const priorInstructions: DebugProtocol.DisassembledInstruction[] = [];
+                // eslint-disable-next-line no-await-in-loop
+                await this.disassembleBackward(priorInstructions, instructions[0].address, backwardDisassembleStepSize);
+                if (priorInstructions.length === 0) {
+                    logger.verbose(`[Disassemble request] Disassemble backward failed. Prepending ${instructionDeficit} dummy instruction(s) to the instructions array.`);
+
+                    instructions = new Array(instructionDeficit).fill(CudaGdbSession.dummyInstruction).concat(instructions);
+                    break;
+                }
+                if (priorInstructions.length <= instructionDeficit) {
+                    instructions = priorInstructions.concat(instructions);
+                    instructionDeficit -= priorInstructions.length;
+
+                    logger.verbose(`[Disassemble request] Disassemble backward returned ${priorInstructions.length} instruction(s). New instruction deficit: ${instructionDeficit}.`);
+                } else {
+                    logger.verbose(`[Disassemble request] Disassemble backward returned ${priorInstructions.length} > ${instructionDeficit} instruction(s).`);
+
+                    instructions = priorInstructions.slice(-instructionDeficit).concat(instructions);
+                    break;
+                }
+            }
+
+            logger.verbose('[Disassemble request] Finished disassembling backward.');
+        } else {
+            logger.verbose(`[Disassemble request] Dropping ${indexOfSplice} instructions from the beginning. Requested instruction offset: ${instructionOffset}, Actual instruction offset: ${indexOfCurrentInsn}`);
+
+            if (indexOfSplice < instructions.length) {
+                instructions.splice(0, indexOfSplice);
+            } else {
+                instructionsToSkip = indexOfSplice - instructions.length;
+                instructions = [];
+            }
+        }
+
+        if (instructions.length > args.instructionCount) {
+            logger.verbose(`[Disassemble request] Dropping ${instructions.length - args.instructionCount} instructions from the end. Requested #instructions: ${args.instructionCount}`);
+
+            instructions.splice(args.instructionCount);
+        } else if (instructions.length < args.instructionCount) {
+            logger.verbose(`[Disassemble request] Need more instructions to meet the requested instruction count (${args.instructionCount}).`);
+
+            const machineInstructionSize = await this.getInstructionSizeEstimate();
+            if (!machineInstructionSize) {
+                logger.verbose(`[Disassemble request] Unable to determine the machine instruction size.`);
+
+                this.sendErrorResponse(response, 1, 'Unable to determine the machine instruction size.');
+                return;
+            }
+
+            // eslint-disable-next-line no-constant-condition
+            while (true) {
+                let result2: MIDataDisassembleResponse | undefined;
+
+                // Never take too few instructions
+                const instructionsToFetch = Math.max(args.instructionCount - instructions.length, 8);
+                const fetchSize = machineInstructionSize * instructionsToFetch;
+
+                const startAddress = lastAddressRead;
+                const endAddress = `(${startAddress})+${fetchSize}`;
+
+                logger.verbose(`[Disassemble request] Disassemble forward. Instruction deficit: ${args.instructionCount - instructions.length}, Start address: ${startAddress}, End address: ${endAddress}`);
+
+                try {
+                    // eslint-disable-next-line no-await-in-loop
+                    result2 = await sendDataDisassemble(this.gdb, { startAddress, endAddress });
+                } catch (error) {
+                    const errorString = error instanceof Error ? error.message : String(error);
+                    logger.error(`[Disassemble request] Disassemble forward: Error while trying to retrieve instructions following address ${startAddress}. Fetch size: ${fetchSize}, Error: ${errorString}`);
+
+                    logger.verbose(`[Disassemble request] Disassemble forward: Appending the instructions array with ${args.instructionCount - instructions.length} dummy instruction(s).`);
+                    instructions = instructions.concat(new Array(args.instructionCount - instructions.length).fill(CudaGdbSession.dummyInstruction));
+                    break;
+                }
+
+                const skippedInstructions: DebugProtocol.DisassembledInstruction[] = [];
+                const { instructionsSkipped, instructionsWritten } = this.flattenDisassembledInstructions(result2.asm_insns, instructions, instructionsToSkip + 1, args.instructionCount - instructions.length, skippedInstructions);
+                instructionsToSkip -= instructionsSkipped - 1;
+
+                if (!instructionsWritten && !instructionsSkipped) {
+                    logger.error(`[Disassemble request] Disassemble forward: No instructions returned while trying to retrieve instructions following address ${startAddress}. Fetch size: ${fetchSize}`);
+                    logger.verbose(`[Disassemble request] Disassemble forward: Appending the instructions array with ${args.instructionCount - instructions.length} dummy instruction(s).`);
+                    instructions = instructions.concat(new Array(args.instructionCount - instructions.length).fill(CudaGdbSession.dummyInstruction));
+                    break;
+                }
+
+                if (instructions.length >= args.instructionCount) {
+                    logger.verbose(`[Disassemble request] Disassemble forward: Instruction count is now at ${instructions.length}. Stopping and splicing at ${args.instructionCount}`);
+                    instructions.splice(args.instructionCount);
+                    break;
+                } else {
+                    lastAddressRead = instructions.at(-1)?.address ?? skippedInstructions[skippedInstructions.length - 1].address;
+                }
+            }
+
+            logger.verbose('[Disassemble request] Disassemble forward completed.');
+        }
+
+        const performDisassembleSanityChecks = this.testMode;
+
+        if (performDisassembleSanityChecks) {
+            const assert = (cond: boolean, msg?: string): void => {
+                if (!cond) {
+                    throw new Error(msg ? `Assertion failed: ${msg}` : 'Assertion failed.');
+                }
+            };
+
+            const instructionLength = (inst: DebugProtocol.DisassembledInstruction): number => (inst.instructionBytes?.replace(/\s/g, '') ?? '').length / 2;
+
+            const follows = (inst1: DebugProtocol.DisassembledInstruction, inst2: DebugProtocol.DisassembledInstruction): boolean => {
+                // Javascript's "number" is double-precision floating point so it can't handle 64-bit address arithmetic with precision.
+                // However, it does support 32-bit bitwise arithmetic, which we use below.
+                const hexDigitsIn32Bits = 8;
+                let addr1 = Number.parseInt(inst1.address.slice(-hexDigitsIn32Bits), 16);
+                const addr2 = Number.parseInt(inst2.address.slice(-hexDigitsIn32Bits), 16);
+                assert(!Number.isNaN(addr1), `Invalid address: ${inst1.address}`);
+                assert(!Number.isNaN(addr2), `Invalid address: ${inst2.address}`);
+
+                addr1 += instructionLength(inst1);
+
+                // Truncate addr1 to 32 bits and compare.
+
+                // eslint-disable-next-line no-bitwise
+                return addr1 >>> 0 === addr2;
+            };
+
+            if (args.instructionOffset === 1 && instructions.length > 0 && instructions[0].address !== CudaGdbSession.invalidAddress) {
+                assert(follows(currentInstruction, instructions[0]), 'Scroll down condition not met.');
+            }
+
+            if (args.instructionOffset && args.instructionOffset < 0 && args.instructionCount === -args.instructionOffset && instructions.length > 0 && instructions[instructions.length - 1].address !== CudaGdbSession.invalidAddress) {
+                assert(follows(instructions[instructions.length - 1], currentInstruction), 'Scroll up condition not met.');
+            }
+
+            for (let i = 0; i < instructions.length - 1; i += 1) {
+                if (instructions[i].address !== CudaGdbSession.invalidAddress && instructions[i + 1].address !== CudaGdbSession.invalidAddress) {
+                    assert(follows(instructions[i], instructions[i + 1]), `${instructions[i].address}+${instructionLength(instructions[i])} != ${instructions[i + 1].address}`);
+                }
+            }
+        }
+
+        if (args.excludeRawOpcodes) {
+            instructions.forEach((i) => {
+                i.instructionBytes = undefined;
+            });
+        }
+
+        response.body = { instructions };
+        this.sendResponse(response);
+
+        logger.verbose(`[Disassemble request] Response sent with ${instructions.length} instruction(s).`);
+    }
+
     private async changeCudaFocusRequest(response: CudaDebugProtocol.ChangeCudaFocusResponse, args: any): Promise<void> {
         try {
             const typedArgs: CudaDebugProtocol.ChangeCudaFocusArguments = args as CudaDebugProtocol.ChangeCudaFocusArguments;
@@ -1593,35 +2012,11 @@ export class CudaGdbSession extends GDBDebugSession {
                 this.sendResponse(response);
 
                 this.sendEvent(new ChangedCudaFocusEvent(newFocus));
-                this.sendEvent(new InvalidatedEvent(['variables']));
+                this.invalidateState();
             }
         } catch (error) {
             this.sendErrorResponse(response, 1, (error as Error).message);
         }
-    }
-
-    private async systemInfoRequest(response: CudaDebugProtocol.SystemInfoResponse): Promise<void> {
-        const osInfo: types.OsInfo = await utils.readOsInfo();
-
-        const devicesResponse = await this.gdb.sendCommand<MICudaInfoDevicesResponse>('-cuda-info-devices');
-        const gpuInfo: types.GpuInfo[] = devicesResponse.InfoCudaDevicesTable?.body?.map((value) => {
-            return {
-                name: value?.name,
-                description: value?.description,
-                smType: value?.sm_type
-            };
-        });
-
-        if (!response.body) {
-            response.body = {};
-        }
-
-        response.body.systemInfo = {
-            os: osInfo,
-            gpus: gpuInfo
-        };
-
-        this.sendResponse(response);
     }
 
     private async resetCudaFocus(): Promise<void> {
@@ -1631,6 +2026,10 @@ export class CudaGdbSession extends GDBDebugSession {
 
         const setFocusCommand: string = utils.formatSetFocusCommand(this.cudaThread.focus);
         await this.gdb.sendCommand(setFocusCommand);
+    }
+
+    private invalidateState(): void {
+        this.sendStoppedEvent('Refreshing State', this.cudaThread.id);
     }
 }
 
@@ -1690,6 +2089,32 @@ export function setEnvVars(envVars: Environment[]): void {
     envVars.forEach((envVarVal) => {
         process.env[envVarVal.name] = envVarVal.value;
     });
+}
+
+async function getDevicesInfo(gdb: GDBBackend): Promise<types.GpuInfo[]> {
+    const devicesResponse = await gdb.sendCommand<MICudaInfoDevicesResponse>('-cuda-info-devices');
+    const gpuInfo: types.GpuInfo[] = devicesResponse.InfoCudaDevicesTable?.body?.map((value) => {
+        return {
+            current: value?.current,
+            name: value?.name,
+            description: value?.description,
+            smType: value?.sm_type
+        };
+    });
+
+    return gpuInfo;
+}
+
+async function getSystemInfo(gdb: GDBBackend): Promise<types.SystemInfo> {
+    const osInfo: types.OsInfo = await utils.readOsInfo();
+    const gpuInfo = await getDevicesInfo(gdb);
+
+    const systemInfo: types.SystemInfo = {
+        os: osInfo,
+        gpus: gpuInfo
+    };
+
+    return systemInfo;
 }
 
 /* eslint-enable max-classes-per-file */

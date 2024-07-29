@@ -89,4 +89,25 @@ describe('Breakpoint tests', async () => {
             threadId = (await TestUtils.assertStoppedLocation(dc, 'step', 'variables/variables.cu', expectedLineNumbers[i])).threadId;
         }
     });
+
+    it('Conditional breakpoints work', async () => {
+        const variablesSource = 'variables/variables.cu';
+        const bpLine = 102;
+
+        const bpResp = await dc.setBreakpointsRequest({
+            source: TestUtils.getTestSource(variablesSource),
+            breakpoints: [
+                {
+                    line: bpLine,
+                    condition: 'i == 2'
+                }
+            ]
+        });
+
+        expect(bpResp.body.breakpoints.length).eq(1);
+        expect(bpResp.body.breakpoints[0].verified).eq(true);
+
+        await dc.configurationDoneRequest();
+        await TestUtils.verifyLocalsOnStop(dc, variablesSource, bpLine, 'breakpoint', [{ name: 'i', value: '2' }]);
+    });
 });

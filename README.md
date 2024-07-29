@@ -1,6 +1,6 @@
 # Nsight Visual Studio Code Edition
 
-#### [Overview](https://developer.nvidia.com/nsight-visual-studio-code-edition)&nbsp;&nbsp;|&nbsp;&nbsp;[Documentation](https://docs.nvidia.com/nsight-visual-studio-code-edition/)&nbsp;&nbsp;|&nbsp;&nbsp;[Forum](https://forums.developer.nvidia.com/c/development-tools/nsight-vscode-edition)&nbsp;&nbsp;|&nbsp;&nbsp;[Code Samples](https://github.com/NVIDIA/cuda-samples)
+#### [Overview](https://developer.nvidia.com/nsight-visual-studio-code-edition)&nbsp;&nbsp;|&nbsp;&nbsp;[Documentation](https://docs.nvidia.com/nsight-visual-studio-code-edition/)&nbsp;&nbsp;|&nbsp;&nbsp;[Forum](https://forums.developer.nvidia.com/c/developer-tools/nsight-vscode-edition)&nbsp;&nbsp;|&nbsp;&nbsp;[Code Samples](https://github.com/NVIDIA/cuda-samples)
 
 Nsight Visual Studio Code edition is an extension for
 [Visual Studio Code](https://code.visualstudio.com/) that

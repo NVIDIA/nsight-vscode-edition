@@ -1,5 +1,17 @@
 # Nsight Visual Studio Code Edition Changelog
 
+## Version 2024.1
+
+* **General Enhancements**
+    * Added ability to pass custom arguments in debugger using miDebuggerArgs.
+
+    * Added ability to specify path to debugger usingmiDebuggerPath in addition to previously available debuggerPath.
+
+    * Line cursor now changes accordingly when switching focus between blocks/threads via the Debug console.
+
+* **CUDA Debugger**
+    * See cuda-gdb release notes in the NVIDIA CUDA Toolkit 12.5 Update 1.
+
 ## Version 2023.2
 
 * **Key Features**

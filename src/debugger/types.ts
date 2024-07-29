@@ -41,6 +41,9 @@ export interface OsInfo {
 }
 
 export interface GpuInfo {
+    // "current" is a string that contains a "*" character for the currently active device.
+    current?: string;
+
     name?: string;
 
     description?: string;

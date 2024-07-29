@@ -54,8 +54,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #define ARRAY_LENGTH(x) (sizeof(x) / sizeof(x[0]))
 
-constexpr int dataLength = 1 << 24;
-constexpr int threadsPerBlock = 128;
+constexpr int dataLength = 1 << 5;
+constexpr int threadsPerBlock = 1 << 5;
 
 typedef unsigned char byte;
 

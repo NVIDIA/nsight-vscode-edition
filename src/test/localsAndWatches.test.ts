@@ -11,7 +11,8 @@
 
 import { expect } from 'chai';
 import { DebugProtocol } from '@vscode/debugprotocol';
-import { TestUtils } from './testUtils';
+import { StoppedContext, TestUtils } from './testUtils';
+
 import { CudaDebugClient } from './cudaDebugClient';
 
 describe('Locals and watches tests', async () => {
@@ -19,43 +20,6 @@ describe('Locals and watches tests', async () => {
 
     const framesSource = 'frames/frames.cpp';
     const variablesSource = 'variables/variables.cu';
-
-    type StoppedContext = {
-        threadId: number;
-        frameId: number;
-        actLocals: Map<string, DebugProtocol.Variable>;
-    };
-
-    const verifyLocalsOnStop = async (
-        source: string,
-        line: number,
-        stopReason: string,
-        expLocals: {
-            name: string;
-            value?: string;
-        }[],
-        allowOthers?: boolean | undefined
-    ): Promise<StoppedContext> => {
-        const { threadId, frameId } = await TestUtils.assertStoppedLocation(dc, stopReason, source, line, 120000);
-
-        const actual = await TestUtils.getLocals(dc, frameId);
-
-        if (allowOthers === false) {
-            expect(actual.size).eq(expLocals.length);
-        }
-
-        expLocals.forEach((v) => {
-            const local = actual.get(v.name);
-            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-            expect(local).exist;
-            if (v.value) {
-                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                expect(local!.value).eq(v.value);
-            }
-        });
-
-        return { threadId, frameId, actLocals: actual };
-    };
 
     afterEach(async () => {
         if (dc) {
@@ -208,7 +172,7 @@ describe('Locals and watches tests', async () => {
                 ],
                 customTask: async (stoppedContext: StoppedContext): Promise<StoppedContext> => {
                     await dc.nextRequest({ threadId: stoppedContext.threadId });
-                    const stoppedContextAt1stNext = await verifyLocalsOnStop(framesSource, 112, 'step', [
+                    const stoppedContextAt1stNext = await TestUtils.verifyLocalsOnStop(dc, framesSource, 112, 'step', [
                         {
                             name: 'a',
                             value: '3'
@@ -224,7 +188,7 @@ describe('Locals and watches tests', async () => {
                     ]);
 
                     await dc.nextRequest({ threadId: stoppedContextAt1stNext.threadId });
-                    const stoppedContextAt2ndtNext = await verifyLocalsOnStop(framesSource, 113, 'step', [
+                    const stoppedContextAt2ndtNext = await TestUtils.verifyLocalsOnStop(dc, framesSource, 113, 'step', [
                         {
                             name: 'a',
                             value: '2'
@@ -293,7 +257,7 @@ describe('Locals and watches tests', async () => {
             const expectedBp = expectedSequence[i];
 
             // eslint-disable-next-line no-await-in-loop
-            let stoppedContext = await verifyLocalsOnStop(framesSource, expectedBp.line, 'breakpoint', expectedBp.expLocals);
+            let stoppedContext = await TestUtils.verifyLocalsOnStop(dc, framesSource, expectedBp.line, 'breakpoint', expectedBp.expLocals);
 
             if (expectedBp.customTask) {
                 // eslint-disable-next-line no-await-in-loop
@@ -341,12 +305,12 @@ describe('Locals and watches tests', async () => {
             }
         };
 
-        const stoppedContext = await verifyLocalsOnStop(variablesSource, 90, 'breakpoint', [{ name: 'myInput' }]);
+        const stoppedContext = await TestUtils.verifyLocalsOnStop(dc, variablesSource, 90, 'breakpoint', [{ name: 'myInput' }]);
         const { actLocals } = stoppedContext;
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         await verifyEntry(actLocals.get('myInput')?.variablesReference!, 0);
 
-        const idx = 12345678;
+        const idx = 19;
         const evaluateResp = await dc.evaluateRequest({ expression: `input + ${idx}`, frameId: stoppedContext.frameId });
         await verifyEntry(evaluateResp.body.variablesReference, idx);
     });

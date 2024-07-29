@@ -8,7 +8,8 @@
             "gdb": "cuda-gdb",
             "program": "${workspaceFolder}/variables",
             "logFile": "${workspaceFolder}/.rubicon_log",
-            "verboseLogging": true
+            "verboseLogging": true,
+            "testMode": true
         }
 
     ]

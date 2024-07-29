@@ -24,7 +24,6 @@ import { TelemetryService } from './telemetryService';
 import * as utils from './debugger/utils';
 import { pickProcess } from './debugger/processList';
 
-
 const cudaGdbDebugType = 'cuda-gdb';
 const cudaGdbServerType = 'cuda-gdbserver';
 const cudaQnxGdbServerType = 'cuda-qnx-gdbserver';
@@ -37,7 +36,7 @@ class InlineDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory 
             const debugServerSession = new CudaGdbServerSession();
             return new vscode.DebugAdapterInlineImplementation(debugServerSession);
             // eslint-disable-next-line no-else-return
-        } else if (session.type === cudaQnxGdbServerType ){
+        } else if (session.type === cudaQnxGdbServerType) {
             const debugQNXServerSession = new CudaQnxGdbServerSession();
             return new vscode.DebugAdapterInlineImplementation(debugQNXServerSession);
         } else {
@@ -116,23 +115,9 @@ class CudaDebugAdapterTracker implements vscode.DebugAdapterTracker {
                     break;
                 }
 
-                default:
-                    break;
-            }
-        } else if (protocolMessage.type === 'response') {
-            const responseMessage = message as DebugProtocol.Response;
-            const messageName: string = responseMessage.command;
-
-            switch (messageName) {
-                case 'configurationDone':
-                    if (this.debugController.telemetry.isEnabled) {
-                        vscode.debug.activeDebugSession?.customRequest(CudaDebugProtocol.Request.systemInfo, {});
-                    }
-                    break;
-
-                case CudaDebugProtocol.Request.systemInfo: {
-                    const typedResponse = responseMessage as CudaDebugProtocol.SystemInfoResponse;
-                    this.debugController.telemetry.trackSystemInfo('debug-adapter', CudaDebugAdapterTracker.SESSION_LABEL, typedResponse?.body?.systemInfo);
+                case CudaDebugProtocol.Event.systemInfo: {
+                    const typedEvent = eventMessage as CudaDebugProtocol.SystemInfoEvent;
+                    this.debugController.telemetry.trackSystemInfo('debug-adapter', typedEvent?.body?.systemInfo);
                     break;
                 }
 

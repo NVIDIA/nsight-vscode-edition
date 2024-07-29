@@ -22,6 +22,12 @@ export interface StopLocationInfo {
     frameId: number;
 }
 
+export interface StoppedContext {
+    threadId: number;
+    frameId: number;
+    actLocals: Map<string, DebugProtocol.Variable>;
+}
+
 export class TestUtils {
     private static readonly debuggerScriptsDirName = 'debugger';
 
@@ -174,5 +180,40 @@ export class TestUtils {
         variablesResp.body.variables.forEach((v) => vars.set(v.name, v));
 
         return vars;
+    }
+
+    static readonly defaultVerifyLocalsTimeout = 120000;
+
+    static async verifyLocalsOnStop(
+        dc: DebugClient,
+        source: string,
+        line: number,
+        stopReason: string,
+        expLocals: {
+            name: string;
+            value?: string;
+        }[],
+        allowOthers?: boolean | undefined,
+        stopTimeout?: number
+    ): Promise<StoppedContext> {
+        const { threadId, frameId } = await TestUtils.assertStoppedLocation(dc, stopReason, source, line, stopTimeout ?? TestUtils.defaultVerifyLocalsTimeout);
+
+        const actual = await TestUtils.getLocals(dc, frameId);
+
+        if (allowOthers === false) {
+            expect(actual.size).eq(expLocals.length);
+        }
+
+        expLocals.forEach((v) => {
+            const local = actual.get(v.name);
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+            expect(local).exist;
+            if (v.value) {
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                expect(local!.value).eq(v.value);
+            }
+        });
+
+        return { threadId, frameId, actLocals: actual };
     }
 }
