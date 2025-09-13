@@ -1010,7 +1010,7 @@
     "dependencies": {
         "@vscode/debugadapter": "^1.66.0",
         "@vscode/debugprotocol": "^1.66.0",
-        "axios": "^1.7.2",
+        "axios": "^1.12.0",
         "cdt-gdb-adapter": "0.0.19",
         "fs-extra": "^11.0.4",
         "uuid": "^10.0.0",
