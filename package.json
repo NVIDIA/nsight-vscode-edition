@@ -981,7 +981,7 @@
         "eslint-plugin-promise": "^6.6.0",
         "eslint-plugin-react": "^7.35.0",
         "eslint-plugin-unicorn": "^54.0.0",
-        "glob": "11.0.0",
+        "glob": "11.1.0",
         "gulp": "^5.0.0",
         "gulp-chmod": "^4.0.0",
         "gulp-execa": "^7.0.1",
