@@ -1,0 +1,3 @@
+{
+    "nsight.cuda.languageSupport.provider": "cpptools"
+}

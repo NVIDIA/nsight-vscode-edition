@@ -1,0 +1,16 @@
+{
+    "extends": "../tsconfig.base.json",
+    "compilerOptions": {
+        "module": "es2022",
+        "moduleResolution": "bundler",
+        "emitDeclarationOnly": true,
+        "allowImportingTsExtensions": true,
+        "types": ["node", "jest"],
+    },
+    "include": ["**/*.ts", "**/*.mts", "**/*.json"],
+    "exclude": ["projects"],
+    "files": ["types.d.ts", "global.d.ts"],
+    "references": [
+        {"path": "../src"},
+    ]
+}

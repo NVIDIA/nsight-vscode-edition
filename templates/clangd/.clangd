@@ -1,0 +1,75 @@
+# Nsight VS Code Edition clangd starter config for CUDA C++ projects.
+#
+# Nsight generates this file once. After it is written to the project root as
+# .clangd, the project owns it; edit or replace it to match the build. Nsight
+# does not automatically overwrite it.
+
+CompileFlags:
+  Compiler: clang++
+
+  # Directory that contains compile_commands.json, or None when Nsight falls
+  # back to generic CUDA flags.
+  CompilationDatabase: @COMPILE_COMMANDS_DIR@
+
+  Add:
+    # CUDA Toolkit selected for this workspace. These paths are explicit because
+    # clangd does not reliably recover CUDA include paths from nvcc entries in
+    # compile_commands.json. They stay global so host .cpp files can include CUDA
+    # runtime headers without being forced into CUDA language mode.
+    - --cuda-path=@CUDA_ROOT@
+    - -I@CUDA_INCLUDE_DIR@
+@IF_CUDA_CCCL_INCLUDE_DIR@
+    # CUDA 13.x ships CCCL headers under include/cccl.
+    - -I@CUDA_CCCL_INCLUDE_DIR@
+@ENDIF_CUDA_CCCL_INCLUDE_DIR@
+
+    # Match the user's project target where possible. clangd expects sm_XX[a];
+    # Nsight normalizes accepted compute_XX[a] aliases before writing this.
+    - --cuda-gpu-arch=@CUDA_GPU_ARCH@
+
+    # CUDA 13.x is newer than clangd 22's reported CUDA support window. These
+    # keep that version skew from becoming a top-level diagnostic.
+    - -Wno-unknown-cuda-version
+    - -Wno-pragma-system-header-outside-header
+
+  Remove:
+    # Strip nvcc-only flags
+    - -G
+    - -stdpar
+    - "-Xfatbin*"
+    - "-Xcompiler*"
+    - "-Xcudafe*"
+    - "-rdc=*"
+    - "-gpu=*"
+    - "--diag_suppress*"
+    - "-gencode*"
+    - "--generate-code*"
+    - -fcoroutines
+    - "-ccbin*"
+    - "--compiler-options*"
+    - "--extended-lambda"
+    - "--expt-extended-lambda"
+    - "--expt-relaxed-constexpr"
+    - "-forward-unknown-to-host-compiler"
+    - "-Werror=cross-execution-space-call"
+    - "-allow-unsupported-compiler"
+
+---
+
+# Force CUDA language mode only for CUDA source files, so host .cpp/.h files in
+# the project are still parsed as ordinary C++. Projects that intentionally use
+# CUDA syntax in other file extensions should extend this PathMatch rule.
+If:
+  PathMatch: '.*\.(cu|cuh)$'
+CompileFlags:
+  Add:
+    - -x
+    - cuda
+Diagnostics:
+  Suppress:
+    # Known clang CUDA-front-end false positives.
+    - "variadic_device_fn"
+    - "attributes_not_allowed"
+    - "template_param_shadow"
+    - "deduction_guide_target_attr"
+    - "shared_var_init"

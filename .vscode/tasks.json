@@ -2,36 +2,66 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "type": "npm",
-            "script": "watch",
-            "problemMatcher": {
-                "fileLocation":"absolute",
-                "pattern":[
-                    {
-                        "regexp": "^\\s*\\[tsl\\] ERROR in ([^\\s]*)\\((\\d+,\\d+)\\)$",
-                        "file": 1,
-                        "location": 2,
-                    },
-                    {
-                        "regexp": "^\\s*(TS\\d+: .*)$",
-                        "message": 1
-                    }
-                ],
-                "background": {
-                    "beginsPattern":"(asset extension.js)|(assets by status)|(webpack.*--watch)",
-                    "endsPattern":"(compiled successfully in)|(compiled with \\d+ errors? in)"
+            "label": "build:vscode",
+            "type": "shell",
+            "command": "npm run build:vscode",
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "shell": {
+                    "executable": "/bin/bash",
+                    "args": ["-c"]
                 }
-            },
-            "isBackground": true,
-            "presentation": {
-                "reveal": "never"
             },
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
-            "label": "npm: watch",
-            "detail": "webpack -c webpack.dev.js --watch"
+            "problemMatcher": {
+                "source": "esbuild",
+                "owner": "esbuild",
+                "pattern": [
+                    {
+                        "regexp": "^(.*):(\\d+):(\\d+): (.*): (.*)$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "severity": 4,
+                        "message": 5
+                    }
+                ],
+            }
+        },
+        {
+            "label": "watch:vscode",
+            "type": "shell",
+            "command": "npm run watch:vscode",
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "shell": {
+                    "executable": "/bin/bash",
+                    "args": ["-c"]
+                }
+            },
+            "group": "build",
+            "isBackground": true,
+            "problemMatcher": {
+                "source": "esbuild",
+                "owner": "esbuild",
+                "pattern": [
+                    {
+                        "regexp": "^(.*):(\\d+):(\\d+): (.*): (.*)$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "severity": 4,
+                        "message": 5
+                    }
+                ],
+                "background": {
+                    "beginsPattern": "^<build>$",
+                    "endsPattern": "^</build>$"
+                }
+            }
         }
     ]
 }

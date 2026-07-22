@@ -18,39 +18,19 @@
             "name": "Tests",
             "type": "node",
             "request": "launch",
-            "runtimeExecutable": "npm",
             "args": [
-                "run",
-                "test",
-                "--",
-                "-i",
-                "-t",
+                "--no-warnings=ExperimentalWarning",
+                "--experimental-vm-modules",
+                "--experimental-transform-types",
+                "${workspaceRoot}/node_modules/.bin/jest",
+                "--runInBand",
+                "--testNamePattern",
                 "${input:testsPattern}",
             ],
             "console": "integratedTerminal"
         },
-        {
-            "name": "Gulp Build",
-            "type": "node",
-            "request": "launch",
-            "program": "${workspaceRoot}/node_modules/gulp/bin/gulp.js",
-            "stopOnEntry": false,
-            "args": [
-                "${input:gulpArgs}"
-            ],
-            "cwd": "${workspaceRoot}",
-            "runtimeArgs": [
-                "--nolazy"
-            ],
-            "console": "internalConsole",
-        }
     ],
     "inputs": [
-        {
-            "id": "gulpArgs",
-            "type": "promptString",
-            "description": "Build task and optionally its command-line arguments"
-        },
         {
             "id": "testsPattern",
             "type": "promptString",

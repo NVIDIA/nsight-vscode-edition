@@ -1,7 +1,7 @@
 {
     "name": "nsight-vscode-edition",
     "type": "commonjs",
-    "version": "2025.1.0",
+    "version": "2026.1.0",
     "displayName": "Nsight Visual Studio Code Edition",
     "description": "CUDA development and debugging support for VS Code",
     "publisher": "nvidia",
@@ -11,11 +11,13 @@
         "name": "NVIDIA"
     },
     "engines": {
-        "vscode": "^1.91.0"
+        "vscode": "^1.101.0"
     },
-    "extensionPack": [
-        "ms-vscode.cpptools"
-    ],
+    "devEngines": {
+        "packageManager": {
+            "name": "npm"
+        }
+    },
     "repository": {
         "type": "git",
         "url": "https://github.com/NVIDIA/nsight-vscode-edition.git"
@@ -37,14 +39,18 @@
     ],
     "activationEvents": [
         "onCommand:cuda.pickProcess",
+        "onCommand:cuda.configureLanguageSupport",
+        "onCommand:cuda.generateClangdConfig",
         "onDebug",
         "onLanguage:cuda-cpp",
         "onUri",
-        "workspaceContains:**/*.cu"
+        "workspaceContains:**/*.cu",
+        "workspaceContains:**/*.cuh"
     ],
     "main": "./dist/extension",
     "files": [
         "dist/**",
+        "templates/clangd/.clangd",
         "images/**",
         "*.png",
         ".crawler-overrides.json",
@@ -102,8 +108,48 @@
                 "command": "cuda.changeDebugFocus",
                 "title": "Change CUDA debug focus",
                 "category": "CUDA"
+            },
+            {
+                "command": "cuda.configureLanguageSupport",
+                "title": "Configure CUDA C++ Language Support",
+                "category": "CUDA"
+            },
+            {
+                "command": "cuda.generateClangdConfig",
+                "title": "Generate .clangd",
+                "category": "CUDA"
             }
         ],
+        "configuration": {
+            "title": "Nsight CUDA",
+            "properties": {
+                "nsight.cuda.languageSupport.provider": {
+                    "type": "string",
+                    "enum": [
+                        "auto",
+                        "clangd",
+                        "cpptools"
+                    ],
+                    "default": "auto",
+                    "scope": "resource",
+                    "description": "Selects the CUDA C++ language support provider Nsight should use for this workspace."
+                },
+                "nsight.cuda.languageSupport.autoConfigure": {
+                    "type": "boolean",
+                    "default": true,
+                    "scope": "resource",
+                    "description": "Automatically checks CUDA workspaces and prompts or applies provider-specific setup when safe."
+                },
+                "nsight.cuda.languageSupport.gpuArch": {
+                    "type": "string",
+                    "default": "",
+                    "scope": "resource",
+                    "pattern": "^(?:$|(?:sm_|compute_)\\d{2,3}a?)$",
+                    "patternErrorMessage": "Leave empty to infer the architecture, or enter a CUDA architecture such as sm_90 or compute_90 (optionally with a trailing 'a'). compute_* values are normalized to sm_* for clangd.",
+                    "description": "CUDA GPU architecture used when Nsight generates a clangd .clangd file or .clangd.nsight.example, for example sm_90. compute_90 and compute_90a are accepted aliases and written as sm_90 and sm_90a; invalid values fall back to compile_commands.json or the default. Changing this setting does not update an existing project-owned .clangd file."
+                }
+            }
+        },
         "variables": {
             "cuda.pickProcess": "cuda.pickProcess"
         },
@@ -240,7 +286,7 @@
                             "environment": {
                                 "type": "array",
                                 "description": "Array containing objects that specify environment variables.",
-                                "default": "{}",
+                                "default": [],
                                 "items": {
                                     "type": "object",
                                     "properties": {
@@ -256,7 +302,7 @@
                             "cwd": {
                                 "type": "string",
                                 "description": "The current working directory (cwd) for the debuggee process.",
-                                "default": ""
+                                "default": "${workspaceFolder}"
                             },
                             "sysroot": {
                                 "type": "string",
@@ -393,7 +439,7 @@
                             "environment": {
                                 "type": "array",
                                 "description": "Array containing objects that specify environment variables.",
-                                "default": "{}",
+                                "default": [],
                                 "items": {
                                     "type": "object",
                                     "properties": {
@@ -471,6 +517,47 @@
                             "program"
                         ],
                         "properties": {
+                            "autostart": {
+                                "type": "object",
+                                "description": "Auto-start configuration for cuda-gdbserver",
+                                "properties": {
+                                    "mode": {
+                                        "type": "string",
+                                        "enum": [
+                                            "local",
+                                            "linux-remote",
+                                            "linux-remote-upload"
+                                        ],
+                                        "enumDescriptions": [
+                                            "Start cuda-gdbserver on the local machine",
+                                            "Start cuda-gdbserver on a remote Linux machine (executable already on target)",
+                                            "Start cuda-gdbserver on a remote Linux machine and upload debuggee executable to TMPDIR (fallback: /tmp). Every debug session invokes rsync to sync the executable (only transfers if changes detected; falls back to SFTP if rsync unavailable)."
+                                        ],
+                                        "description": "Auto-start mode for starting cuda-gdbserver",
+                                        "default": "linux-remote"
+                                    },
+                                    "sshUsername": {
+                                        "type": "string",
+                                        "description": "SSH username for remote autostart (optional; will prompt if missing)",
+                                        "default": ""
+                                    },
+                                    "sshKeyPath": {
+                                        "type": "string",
+                                        "description": "Path to SSH private key file for authentication (optional; will prompt for auth method if missing)",
+                                        "default": ""
+                                    },
+                                    "sshPort": {
+                                        "type": "string",
+                                        "description": "SSH port for linux-remote/linux-remote-upload modes (optional, defaults to 22 if not specified).",
+                                        "default": ""
+                                    },
+                                    "remoteExecutable": {
+                                        "type": "string",
+                                        "description": "Remote path to the debuggee executable for autostart mode linux-remote",
+                                        "default": ""
+                                    }
+                                }
+                            },
                             "debuggerPath": {
                                 "type": "string",
                                 "description": "The path to cuda-gdb. If unspecified, the path will be searched for cuda-gdb.",
@@ -483,7 +570,7 @@
                             },
                             "program": {
                                 "type": "string",
-                                "description": "Path to the program to debug.",
+                                "description": "Local path to the program to debug.",
                                 "default": "${workspaceFolder}/a.out"
                             },
                             "args": {
@@ -572,7 +659,7 @@
                             "environment": {
                                 "type": "array",
                                 "description": "Array containing objects that specify environment variables.",
-                                "default": "{}",
+                                "default": [],
                                 "items": {
                                     "type": "object",
                                     "properties": {
@@ -588,7 +675,7 @@
                             "cwd": {
                                 "type": "string",
                                 "description": "The current working directory (cwd) for the debuggee process.",
-                                "default": []
+                                "default": "${workspaceFolder}"
                             },
                             "target": {
                                 "type": "object",
@@ -611,13 +698,23 @@
                                     },
                                     "port": {
                                         "type": "string",
-                                        "description": "Target port to connect to.",
-                                        "default": "9999"
+                                        "description": "Port for cuda-gdbserver to listen on (defaults to 2345 if not specified).",
+                                        "default": "2345"
                                     },
                                     "connectCommands": {
                                         "type": "array",
                                         "description": "Target connect commands.",
-                                        "default": "[]"
+                                        "default": []
+                                    },
+                                    "server": {
+                                        "type": "string",
+                                        "description": "Path to cuda-gdbserver executable (absolute path or command name in PATH). Defaults to 'cuda-gdbserver'.",
+                                        "default": "cuda-gdbserver"
+                                    },
+                                    "serverPortRegExp": {
+                                        "type": "string",
+                                        "description": "Regular expression to detect when cuda-gdbserver is ready. Defaults to 'Listening on|Remote debugging|started'.",
+                                        "default": ""
                                     }
                                 }
                             },
@@ -634,7 +731,7 @@
                             "preRunCommands": {
                                 "type": "array",
                                 "description": "[optional] Commands to execute between loading image/symbols and loading target.",
-                                "default": "[]"
+                                "default": []
                             },
                             "sysroot": {
                                 "type": "string",
@@ -663,7 +760,7 @@
                         "program": "",
                         "target": {
                             "host": "localhost",
-                            "port": "12345"
+                            "port": "2345"
                         },
                         "sysroot": "",
                         "debuggerPath": ""
@@ -681,10 +778,66 @@
                             "program": "",
                             "target": {
                                 "host": "localhost",
-                                "port": "12345"
+                                "port": "2345"
                             },
                             "sysroot": "",
                             "debuggerPath": ""
+                        }
+                    },
+                    {
+                        "label": "CUDA GDB Server: Auto-start (Local)",
+                        "description": "Auto-start cuda-gdbserver on local machine and attach",
+                        "body": {
+                            "name": "CUDA GDB Server: Auto-start (Local)",
+                            "type": "cuda-gdbserver",
+                            "request": "launch",
+                            "autostart": {
+                                "mode": "local"
+                            },
+                            "program": "${workspaceFolder}/a.out"
+                        }
+                    },
+                    {
+                        "label": "CUDA GDB Server: Auto-start (Remote)",
+                        "description": "Auto-start cuda-gdbserver on remote Linux machine and attach",
+                        "body": {
+                            "name": "CUDA GDB Server: Auto-start (Remote)",
+                            "type": "cuda-gdbserver",
+                            "request": "launch",
+                            "autostart": {
+                                "mode": "linux-remote",
+                                "remoteExecutable": "/path/to/executable/on/remote",
+                                "sshUsername": "",
+                                "sshKeyPath": "",
+                                "sshPort": "22"
+                            },
+                            "program": "${workspaceFolder}/a.out",
+                            "target": {
+                                "host": "remote-host",
+                                "port": "2345",
+                                "server": "cuda-gdbserver"
+                            }
+                        }
+                    },
+                    {
+                        "label": "CUDA GDB Server: Auto-start (Remote + Upload)",
+                        "description": "Copy executable to remote Linux machine, auto-start cuda-gdbserver and attach",
+                        "body": {
+                            "name": "CUDA GDB Server: Auto-start (Remote + Upload)",
+                            "type": "cuda-gdbserver",
+                            "request": "launch",
+                            "autostart": {
+                                "mode": "linux-remote-upload",
+                                "sshUsername": "",
+                                "sshKeyPath": "",
+                                "sshPort": "22"
+                            },
+                            "program": "${workspaceFolder}/a.out",
+                            "target": {
+                                "host": "remote-host",
+                                "port": "2345",
+                                "server": "cuda-gdbserver"
+                            }
                         }
                     }
                 ]
@@ -706,6 +859,77 @@
                             "program"
                         ],
                         "properties": {
+                            "autostart": {
+                                "type": "object",
+                                "description": "Auto-start configuration for cuda-gdbserver (QNX)",
+                                "properties": {
+                                    "mode": {
+                                        "type": "string",
+                                        "enum": [
+                                            "qnx-remote",
+                                            "qnx-remote-upload"
+                                        ],
+                                        "enumDescriptions": [
+                                            "Start cuda-gdbserver on the QNX target (cuda-gdbserver already on target). The debuggee executable is uploaded by CUDA-GDB every debug session.",
+                                            "Start cuda-gdbserver on the QNX target and upload cuda-gdbserver binary to TMPDIR (fallback: /tmp). Every debug session invokes rsync to sync cuda-gdbserver (only transfers if changes detected; falls back to SFTP if rsync unavailable). The debuggee executable is also uploaded by CUDA-GDB every debug session."
+                                        ],
+                                        "description": "Auto-start mode for starting cuda-gdbserver (QNX)",
+                                        "default": "qnx-remote"
+                                    },
+                                    "sshUsername": {
+                                        "type": "string",
+                                        "description": "SSH username for remote autostart (optional; will prompt if missing)",
+                                        "default": ""
+                                    },
+                                    "sshKeyPath": {
+                                        "type": "string",
+                                        "description": "Path to SSH private key file for authentication (optional; will prompt for auth method if missing)",
+                                        "default": ""
+                                    },
+                                    "sshPort": {
+                                        "type": "string",
+                                        "description": "SSH port for connecting to QNX target (optional, defaults to 22 if not specified).",
+                                        "default": ""
+                                    },
+                                    "localCudaGdbServerPath": {
+                                        "type": "string",
+                                        "description": "Path to QNX-compatible cuda-gdbserver binary on your local machine (for 'qnx-remote-upload' mode only). This binary will be copied to the QNX target and executed. Required for qnx-remote-upload mode.",
+                                        "default": ""
+                                    },
+                                    "remoteUploadPath": {
+                                        "type": "string",
+                                        "description": "Remote directory on QNX target where files should be uploaded and cuda-gdbserver executed (optional). If not specified, queries TMPDIR environment variable with fallback to /tmp. This directory is used for uploading cuda-gdbserver binary (in qnx-remote-upload mode), uploading the debuggee executable, and as the working directory for cuda-gdbserver.",
+                                        "default": ""
+                                    },
+                                    "serverEnvironment": {
+                                        "type": "array",
+                                        "description": "Environment variables to set in the shell when starting cuda-gdbserver on the QNX target (optional).",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string",
+                                                    "description": "Environment variable name"
+                                                },
+                                                "value": {
+                                                    "type": "string",
+                                                    "description": "Environment variable value"
+                                                }
+                                            },
+                                            "required": [
+                                                "name",
+                                                "value"
+                                            ]
+                                        },
+                                        "default": []
+                                    },
+                                    "remoteExecutable": {
+                                        "type": "string",
+                                        "description": "Remote path to the debuggee executable",
+                                        "default": "/tmp/default"
+                                    }
+                                }
+                            },
                             "debuggerPath": {
                                 "type": "string",
                                 "description": "The path to cuda-gdb. If unspecified, the path will be searched for cuda-gdb.",
@@ -718,7 +942,7 @@
                             },
                             "program": {
                                 "type": "string",
-                                "description": "Path to the program to debug.",
+                                "description": "Local path to the program to debug.",
                                 "default": "${workspaceFolder}/a.out"
                             },
                             "args": {
@@ -807,7 +1031,7 @@
                             "environment": {
                                 "type": "array",
                                 "description": "Array containing objects that specify environment variables.",
-                                "default": "{}",
+                                "default": [],
                                 "items": {
                                     "type": "object",
                                     "properties": {
@@ -823,7 +1047,7 @@
                             "cwd": {
                                 "type": "string",
                                 "description": "The current working directory (cwd) for the debuggee process.",
-                                "default": []
+                                "default": "${workspaceFolder}"
                             },
                             "target": {
                                 "type": "object",
@@ -846,13 +1070,28 @@
                                     },
                                     "port": {
                                         "type": "string",
-                                        "description": "Target port to connect to.",
-                                        "default": "9999"
+                                        "description": "Port for cuda-gdbserver to listen on (defaults to 2346 if not specified).",
+                                        "default": "2346"
                                     },
                                     "connectCommands": {
                                         "type": "array",
                                         "description": "Target connect commands.",
-                                        "default": "[]"
+                                        "default": []
+                                    },
+                                    "server": {
+                                        "type": "string",
+                                        "description": "Path to cuda-gdbserver executable on the QNX target (absolute path or command name in PATH). Defaults to 'cuda-gdbserver'.",
+                                        "default": "cuda-gdbserver"
+                                    },
+                                    "serverPortRegExp": {
+                                        "type": "string",
+                                        "description": "Regular expression to detect when cuda-gdbserver is ready. Defaults to 'cuda-gdbserver cuda initialized|cuda-gdbserver started'.",
+                                        "default": ""
+                                    },
+                                    "serverStartupDelay": {
+                                        "type": "number",
+                                        "description": "Delay in milliseconds to wait for cuda-gdbserver to start",
+                                        "default": ""
                                     }
                                 }
                             },
@@ -869,7 +1108,7 @@
                             "preRunCommands": {
                                 "type": "array",
                                 "description": "[optional] Commands to execute between loading image/symbols and loading target.",
-                                "default": "[]"
+                                "default": []
                             },
                             "sysroot": {
                                 "type": "string",
@@ -879,11 +1118,6 @@
                             "additionalSOLibSearchPath": {
                                 "type": "string",
                                 "description": "Directory where the debugger searches for shared libraries.",
-                                "default": ""
-                            },
-                            "executableUploadPath": {
-                                "type": "string",
-                                "description": "Path to upload the file to on the QNX system",
                                 "default": ""
                             },
                             "testMode": {
@@ -903,9 +1137,9 @@
                         "program": "",
                         "target": {
                             "host": "localhost",
-                            "port": "12345"
+                            "port": "2346"
                         },
-                        "sysroot": "",
+                        "sysroot": "/path/to/qnx-sysroot",
                         "debuggerPath": ""
                     }
                 ],
@@ -923,8 +1157,53 @@
                                 "host": "localhost",
                                 "port": "12345"
                             },
-                            "sysroot": "",
+                            "sysroot": "/path/to/qnx-sysroot",
                             "debuggerPath": ""
+                        }
+                    },
+                    {
+                        "label": "CUDA QNX GDB Server: Auto-start (Remote)",
+                        "description": "Auto-start cuda-gdbserver on remote QNX target (assumes cuda-gdbserver already installed on target)",
+                        "body": {
+                            "name": "CUDA QNX GDB Server: Auto-start (Remote)",
+                            "type": "cuda-qnx-gdbserver",
+                            "request": "launch",
+                            "autostart": {
+                                "mode": "qnx-remote",
+                                "sshUsername": "",
+                                "sshKeyPath": "",
+                                "sshPort": "22",
+                                "remoteUploadPath": "/storage"
+                            },
+                            "program": "${workspaceFolder}/a.out",
+                            "target": {
+                                "host": "qnx-target-host",
+                                "port": "2346",
+                                "server": "path/to/cuda-gdbserver"
+                            },
+                            "sysroot": "/path/to/qnx-sysroot",
+                            "debuggerPath": "/path/to/cuda-qnx-gdb"
+                        }
+                    },
+                    {
+                        "label": "CUDA QNX GDB Server: Auto-start (Remote + Upload Server)",
+                        "description": "Upload cuda-gdbserver to QNX target, auto-start it and attach",
+                        "body": {
+                            "name": "CUDA QNX GDB Server: Auto-start (Remote + Upload Server)",
+                            "type": "cuda-qnx-gdbserver",
+                            "request": "launch",
+                            "autostart": {
+                                "mode": "qnx-remote-upload",
+                                "localCudaGdbServerPath": "/path/to/qnx-cuda-gdbserver",
+                                "remoteUploadPath": "/storage"
+                            },
+                            "program": "${workspaceFolder}/a.out",
+                            "target": {
+                                "host": "qnx-target-host",
+                                "port": "2346"
+                            },
+                            "sysroot": "/path/to/qnx-sysroot",
+                            "debuggerPath": "/path/to/cuda-qnx-gdb"
                         }
                     }
                 ]
@@ -932,88 +1211,71 @@
         ]
     },
     "scripts": {
-        "node": "node -r ./register-ts-node.js",
-        "clean": "gulp clean",
-        "clean:tests": "gulp clean:tests",
-        "prepare": "npm --workspaces --if-present run build && npm run update-notices",
+        "clean": "rm -rf ./test/projects/build ./dist ./out ./*.vsix && (cd ./src/test/testPrograms && make clean)",
         "lint": "eslint .",
-        "tsc": "npm run prepare && tsc -p ./",
-        "pretest": "npm run webpack:dev && gulp compile:tests",
+        "tsc": "tsc -b .",
+        "build": "npm run build --workspace=cdt-gdb-adapter && npx node bundle.mts extension debugAdapter",
+        "build:vscode": "npm run build -- --vscode",
+        "build:test": "cmake -S ./test/projects -B ./test/projects/build && cmake --build ./test/projects/build",
+        "build:test:extension-host": "npx node test/extensionHost/build.mts",
+        "watch": "npx node bundle.mts extension --watch",
+        "watch:vscode": "npm run watch -- --vscode",
+        "pretest": "npm run build && npm run build:test",
         "test": "jest",
-        "webpack": "npm run prepare && npm run node -- node_modules/.bin/webpack -c",
-        "webpack:dev": "npm run webpack -- ./webpack.dev.mts",
-        "webpack:prod": "npm run webpack -- ./webpack.prod.mts",
-        "watch": "npm run webpack:dev -- --watch --no-color",
-        "package": "npm run lint && npm run prepare && gulp package",
-        "update-notices": "ts-node updateThirdPartyNotices.ts ."
+        "test:language-support": "jest test/languageSupport --runInBand",
+        "test:extension-host": "npm run build && npm run build:test:extension-host && npx node out/extensionHost/runTest.js",
+        "test:extension-host:language-support": "npm run test:extension-host",
+        "package": "npm run tsc && npm run lint && npm run build && npm run update-notices && npx vsce package",
+        "update-notices": "npm install && npx node third-party-notices-update.mts"
     },
     "devDependencies": {
-        "@jest/globals": "^29.7.0",
-        "@tsconfig/node20": "^20.1.4",
-        "@types/chai": "^4.3.16",
-        "@types/fs-extra": "^11.0.4",
-        "@types/gulp": "^4.0.17",
-        "@types/jest": "^29.5.12",
-        "@types/license-checker": "25.0.1",
+        "@eslint/js": "^9.27.0",
+        "@jest/globals": "^30.0.0",
+        "@tsconfig/node22": "^22.0.2",
+        "@types/chai": "^5.2.2",
+        "@types/jest": "^30.0.0",
+        "@types/license-checker": "^25.0.6",
         "@types/mocha": "^10.0.7",
-        "@types/node": "^20.14.11",
-        "@types/semver": "^7.5.8",
-        "@types/undertaker": "^1.2.11",
-        "@types/uuid": "^10.0.0",
-        "@types/vscode": "^1.91.0",
-        "@types/webpack": "^5.28.5",
+        "@types/node": "^24.0.4",
+        "@types/semver": "^7.7.0",
+        "@types/ssh2": "^1.11.15",
         "@types/which": "^3.0.4",
-        "@types/yargs": "^17.0.32",
-        "@typescript-eslint/eslint-plugin": "^7.17.0",
-        "@typescript-eslint/parser": "^7.17.0",
-        "@vscode/debugadapter-testsupport": "^1.66.0",
-        "@vscode/test-electron": "^2.4.1",
-        "@vscode/vsce": "^2.31.1",
-        "await-spawn": "^4.0.2",
-        "chai": "^5.1.1",
-        "del": "^7.1.0",
-        "eslint": "^8.57.0",
-        "eslint-config-prettier": "^9.1.0",
-        "eslint-plugin-eslint-comments": "^3.2.0",
-        "eslint-plugin-import": "^2.29.1",
-        "eslint-plugin-jsx-a11y": "^6.9.0",
-        "eslint-plugin-prettier": "^5.2.1",
-        "eslint-plugin-promise": "^6.6.0",
-        "eslint-plugin-react": "^7.35.0",
-        "eslint-plugin-unicorn": "^54.0.0",
-        "glob": "11.0.0",
-        "gulp": "^5.0.0",
-        "gulp-chmod": "^4.0.0",
-        "gulp-execa": "^7.0.1",
-        "gulp-sourcemaps": "^2.6.5",
-        "gulp-typescript": "^5.0.1",
-        "jest": "^29.7.0",
-        "jest-extended": "^4.0.2",
-        "license-checker": "25.0.1",
+        "@types/yargs": "^17.0.33",
+        "@typescript-eslint/eslint-plugin": "^8.33.0",
+        "@typescript-eslint/parser": "^8.33.0",
+        "@vscode/debugadapter-testsupport": "^1.68.0",
+        "@vscode/test-electron": "^2.5.2",
+        "@vscode/vsce": "^3.5.0",
+        "chai": "^5.2.0",
+        "esbuild": "^0.25.5",
+        "eslint": "^9.27.0",
+        "eslint-config-prettier": "^10.1.5",
+        "eslint-import-resolver-typescript": "^4.4.1",
+        "eslint-plugin-import-x": "^4.14.1",
+        "eslint-plugin-prettier": "^5.4.0",
+        "eslint-plugin-promise": "^7.2.1",
+        "eslint-plugin-unicorn": "^59.0.1",
+        "globals": "^16.2.0",
+        "jest": "^30.0.0",
+        "jest-environment-node": "^30.0.0",
+        "jest-extended": "^6.0.0",
+        "json5": "^2.2.3",
+        "license-checker": "^25.0.1",
         "mocha": "^10.7.0",
-        "node-fetch": "^3.3.2",
-        "node-gyp": "^10.2.0",
-        "node-loader": "^2.0.0",
         "prettier": "^3.3.3",
-        "semver": "^7.5.4",
-        "source-map-loader": "^5.0.0",
-        "ts-jest": "^29.2.3",
-        "ts-loader": "^9.5.1",
-        "ts-node": "^10.9.2",
-        "typescript": "^5.5.3",
-        "webpack": "^5.93.0",
-        "webpack-cli": "^5.1.4",
-        "webpack-merge": "^6.0.1",
-        "yargs": "^17.7.2",
-        "yarn": "^1.22.22"
+        "typescript": "^5.8.3",
+        "typescript-eslint": "^8.33.0",
+        "wait-for-expect": "^3.0.2",
+        "yargs": "^18.0.0"
     },
     "dependencies": {
-        "@vscode/debugadapter": "^1.66.0",
-        "@vscode/debugprotocol": "^1.66.0",
-        "axios": "^1.7.2",
+        "@types/vscode": "^1.101.0",
+        "@vscode/debugadapter": "^1.68.0",
+        "@vscode/debugprotocol": "^1.68.0",
         "cdt-gdb-adapter": "0.0.19",
-        "fs-extra": "^11.0.4",
-        "uuid": "^10.0.0",
-        "which": "^3.0.1"
+        "semver": "^7.7.2",
+        "ssh-config": "^4.4.0",
+        "ssh2": "^1.15.0",
+        "which": "^5.0.0"
     }
 }

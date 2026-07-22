@@ -9,9 +9,7 @@
 |                                                                                      |
 \* ---------------------------------------------------------------------------------- */
 
-// eslint-disable-next-line max-classes-per-file
-import axios from 'axios';
-import * as uuid from 'uuid';
+import { randomUUID } from 'node:crypto';
 import * as vscode from 'vscode';
 
 import * as types from './debugger/types';
@@ -172,7 +170,6 @@ class TelemetryClient {
             return elapsedTimeMs;
         })();
 
-        // eslint-disable-next-line no-restricted-syntax
         for (const event of events) {
             event.params.session_id = this.sessionStartMs;
             event.params.engagement_time_msec = engagementTimeMs;
@@ -192,7 +189,11 @@ class TelemetryClient {
             user_properties: this.userProperties
         };
 
-        axios.post(this.endpoint, payload);
+        fetch(this.endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
     }
 }
 
@@ -208,7 +209,7 @@ export class TelemetryService {
     constructor(context: vscode.ExtensionContext, apiSecret: string, measurementID: string, extensionVersion: string) {
         let clientID: string | undefined = context.globalState.get<string>(TelemetryService.CLIENT_ID_KEY);
         if (!clientID) {
-            clientID = uuid.v4();
+            clientID = randomUUID();
             context.globalState.update(TelemetryService.CLIENT_ID_KEY, clientID);
         }
 
@@ -321,7 +322,6 @@ export class TelemetryService {
         }
 
         if (systemInfo?.gpus?.length) {
-            // eslint-disable-next-line no-restricted-syntax
             for (const gpu of systemInfo.gpus) {
                 events.push({
                     name: 'gpu_info',

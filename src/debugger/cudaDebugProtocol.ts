@@ -9,8 +9,7 @@
 |                                                                                      |
 \* ---------------------------------------------------------------------------------- */
 
-/* eslint-disable max-classes-per-file */
-import { DebugProtocol } from '@vscode/debugprotocol';
+import { type DebugProtocol } from '@vscode/debugprotocol';
 import * as types from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -24,13 +23,13 @@ export namespace CudaDebugProtocol {
         systemInfo = 'systemInfo'
     }
 
+    export interface ChangeCudaFocusArguments {
+        focus?: types.CudaFocus;
+    }
+
     export interface ChangeCudaFocusRequest extends DebugProtocol.Request {
         //command: Request.changeCudaFocus;
         arguments: ChangeCudaFocusArguments;
-    }
-
-    export interface ChangeCudaFocusArguments {
-        focus?: types.CudaFocus;
     }
 
     export interface ChangeCudaFocusResponse extends DebugProtocol.Response {
@@ -53,5 +52,3 @@ export namespace CudaDebugProtocol {
         };
     }
 }
-
-/* eslint-enable max-classes-per-file */
