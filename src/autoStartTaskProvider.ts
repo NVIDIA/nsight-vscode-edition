@@ -26,7 +26,6 @@ export class AutoStartTaskProvider implements vscode.TaskProvider {
     public resolveTask(task: vscode.Task): vscode.Task | undefined {
         const { label } = task.definition;
         if (!label) {
-            // eslint-disable-next-line unicorn/no-useless-undefined
             return undefined;
         }
         const { definition } = task as any;
@@ -38,7 +37,6 @@ export class AutoStartTaskProvider implements vscode.TaskProvider {
             return this.tasks;
         }
 
-        /* eslint-disable no-template-curly-in-string */
         const taskList: RemoteTaskDefinition[] = [
             { label: AutostartType.LocalHost, type: 'shell', command: 'cuda-gdbserver ${config:host}:${config:port} ${config:executable}' },
             { label: AutostartType.RemoteHost, type: 'shell', command: 'ssh ${config:username}@${config:host} "cuda-gdbserver ${config:host}:${config:port} ${config:remoteExecutable}"' },
@@ -50,14 +48,12 @@ export class AutoStartTaskProvider implements vscode.TaskProvider {
             { label: AutostartType.QNXHost, type: 'shell', command: 'ssh ${config:username}@${config:host} ${config:cudaGdbServerPath} ${config:port}' },
             { label: AutostartType.ScpQNXHost, type: 'shell', command: 'scp ${config:cudaGdbServerPath} ${config:username}@${config:host}:/tmp && ssh ${config:username}@${config:host} /tmp/cuda-gdbserver ${config:port}' }
         ];
-        /* eslint-enable no-template-curly-in-string */
 
         this.tasks = taskList.map((taskItem) => this.getTask(taskItem));
 
         return this.tasks;
     }
 
-    // eslint-disable-next-line class-methods-use-this
     private getTask(taskItem: RemoteTaskDefinition): vscode.Task {
         const shellExec = new vscode.ShellExecution(taskItem.command);
         const task = new vscode.Task(taskItem, vscode.TaskScope.Workspace, taskItem.label, 'Nsight', shellExec);

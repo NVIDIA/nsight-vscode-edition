@@ -1,0 +1,59 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "cmake",
+            "label": "all:configure",
+            "command": "configure",
+            "group": "build",
+            "problemMatcher": [],
+        },
+        {
+            "type": "cmake",
+            "label": "all:build",
+            "dependsOn": "all:configure",
+            "command": "build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+        },
+        {
+            "type": "cmake",
+            "label": "default:build",
+            "dependsOn": "all:configure",
+            "command": "build",
+            "targets": [
+                "default"
+            ],
+            "group": "build",
+            "problemMatcher": [],
+        },
+        {
+            "type": "process",
+            "label": "default:run",
+            "command": "${workspaceFolder}/build/default/default",
+            "args": ["attach"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": ["default:build"],
+            "isBackground": true,
+            "group": "build",
+            "problemMatcher": {
+                "owner": "cuda-attach",
+                "pattern": [
+                    {
+                        "regexp": "^$"
+                    }
+                ],
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^Waiting for debugger attach\\.",
+                    "endsPattern": "^Waiting for debugger attach\\."
+                }
+            },
+        }
+    ]
+}

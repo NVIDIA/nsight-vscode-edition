@@ -13,13 +13,14 @@ import assert from 'node:assert/strict';
 import { type SpawnOptions } from 'node:child_process';
 import * as fs from 'node:fs';
 import path from 'node:path';
-import { DebugProtocol } from '@vscode/debugprotocol';
+import { type DebugProtocol } from '@vscode/debugprotocol';
 import { DebugClient } from '@vscode/debugadapter-testsupport';
 import { CudaDebugClient, type StopLocationInfo } from './cudaDebugClient';
 import { type CudaLaunchRequestArguments } from '../debugger/cudaGdbSession';
 import { expect } from '@jest/globals';
+import { fileURLToPath } from 'node:url';
 
-export { StopLocationInfo } from './cudaDebugClient';
+export { type StopLocationInfo } from './cudaDebugClient';
 
 export interface StoppedContext {
     threadId: number;
@@ -31,12 +32,13 @@ export interface LineNumbers {
     [marker: string]: number;
 }
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class TestUtils {
     static readonly localScopeName = 'Local';
 
     static getDebugAdapterPath(): string {
-        // eslint-disable-next-line unicorn/prefer-module
         const debugAdapterPath = path.resolve(__dirname, '../../dist/debugAdapter.js');
         expect(fs.existsSync(debugAdapterPath)).toBe(true);
         return debugAdapterPath;
@@ -51,7 +53,6 @@ export class TestUtils {
         }
 
         for (const searchPath of searchPaths) {
-            // eslint-disable-next-line unicorn/prefer-module
             const testProgramsDir = path.resolve(__dirname, searchPath);
             const resolvedTestPath = path.resolve(testProgramsDir, testPath);
 

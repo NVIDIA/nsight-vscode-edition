@@ -14,7 +14,7 @@ import { type SpawnOptions } from 'node:child_process';
 import * as fs from 'node:fs';
 import { expect } from '@jest/globals';
 import { DebugClient } from '@vscode/debugadapter-testsupport';
-import { DebugProtocol } from '@vscode/debugprotocol';
+import { type DebugProtocol } from '@vscode/debugprotocol';
 import { CudaDebugProtocol } from '../debugger/cudaDebugProtocol';
 
 export interface StopLocationInfo {
@@ -59,17 +59,7 @@ export class CudaDebugClient extends DebugClient {
         });
 
         expect(stackFrames).toBeArray();
-        expect(stackFrames).toEqual(
-            expect.objectContaining({
-                [0]: expect.objectContaining({
-                    line,
-                    source: expect.objectContaining({
-                        path: expect.toEndWith(file)
-                    })
-                })
-            })
-        );
-
+        expect(stackFrames).not.toBeEmpty();
         expect(stackFrames[0]).toEqual(
             expect.objectContaining({
                 line,

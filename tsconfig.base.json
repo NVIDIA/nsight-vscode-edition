@@ -1,5 +1,5 @@
 {
-    "extends": "@tsconfig/node20/tsconfig.json",
+    "extends": "@tsconfig/node22/tsconfig.json",
     "compilerOptions": {
         "rootDir": "",
         "outDir": "out",
@@ -14,9 +14,7 @@
         "allowJs": true,
         "types": ["node"],
     },
-    "files": [
-        "types.d.ts",
-    ],
+    "files": [],
     "include": [],
-    "exclude": [],
+    "exclude": ["node_modules"],
 }

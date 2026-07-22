@@ -76,17 +76,9 @@ describe('Breakpoint tests', () => {
 
         let { threadId } = await TestUtils.assertStoppedLocation(dc, 'breakpoint', 'variables/variables.cu', 87);
 
-        const expectedLineNumbers = [88, 90, 92, 93];
-
-        // We use a for-loop here because:
-        // -- forEach will run the iterations in parallel
-        // -- for-of will require regenerating iterators, which results in a different eslint warning.
-        // eslint-disable-next-line unicorn/no-for-loop
-        for (let i = 0; i < expectedLineNumbers.length; i += 1) {
-            // eslint-disable-next-line no-await-in-loop
+        for (const expectedLineNumber of [88, 90, 92, 93]) {
             await dc.nextRequest({ threadId });
-            // eslint-disable-next-line no-await-in-loop
-            ({ threadId } = await TestUtils.assertStoppedLocation(dc, 'step', 'variables/variables.cu', expectedLineNumbers[i]));
+            ({ threadId } = await TestUtils.assertStoppedLocation(dc, 'step', 'variables/variables.cu', expectedLineNumber));
         }
     });
 

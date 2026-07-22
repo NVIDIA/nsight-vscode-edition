@@ -104,16 +104,9 @@ describe('Register tests', () => {
 
         const registersMap = new Map<string, string>(variables.map((v) => [v.name, v.value]));
 
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         expect(Number.parseInt(registersMap.get('rcx')!)).eq(21);
-
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         expect(Number.parseInt(registersMap.get('rdx')!)).eq(13);
-
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         expect(Number.parseInt(registersMap.get('dx')!)).eq(13);
-
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         expect(Number.parseInt(registersMap.get('dh')!)).eq(0);
 
         await dc.stop();

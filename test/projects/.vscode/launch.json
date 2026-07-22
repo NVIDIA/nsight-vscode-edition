@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "default:launch",
+            "preLaunchTask": "default:build",
+            "type": "cuda-gdb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/default/default",
+            "args": ["variables"],
+            "logFile": "${workspaceFolder}/.rubicon_log",
+            "verboseLogging": true,
+            "testMode": true
+        },
+        {
+            "name": "default:attach",
+            "type": "cuda-gdb",
+            "request": "attach",
+            "processId": "${command:cuda.pickProcess}",
+            "logFile": "${workspaceFolder}/.rubicon_log",
+            "verboseLogging": true,
+            "testMode": true,
+        }
+    ]
+}

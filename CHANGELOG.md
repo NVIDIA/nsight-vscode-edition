@@ -1,6 +1,33 @@
 # Nsight Visual Studio Code Edition Changelog
 
 
+## Version 2026.1
+
+* **Key Features**
+    * Added `cuda-gdbserver` autostart for remote debugging via the `autostart` launch configuration property, with modes `local`, `linux-remote`, `linux-remote-upload`, `qnx-remote`, and `qnx-remote-upload`.
+
+    * CUDA built-in variables and PTX special registers are now shown in the Variables view.
+
+    * Added guided CUDA C++ language support setup: the extension detects CUDA workspaces and configures clangd or Microsoft's C/C++ extension as the language provider.
+
+    * Breakpoints can now be set in the Disassembly view.
+
+    * Added Linux arm64 host support.
+
+    * The extension is now published on the Open VSX Registry, enabling installation in VSCodium and other compatible editors.
+
+* **General Enhancements**
+    * Fixed debugger controls (continue, pause, step) getting out of sync with the debuggee after attach.
+
+    * Fixed a duplicate `errorpc` entry in the Variables view.
+
+    * Fixed an empty `args` array adding an empty argument to the debuggee command line.
+
+    * Improved validation of attach request inputs.
+
+* **CUDA Debugger**
+    * See cuda-gdb release notes in the NVIDIA CUDA Toolkit 13.3.
+
 ## Version 2025.1
 
 * **General Enhancements**

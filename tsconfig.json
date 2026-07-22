@@ -1,9 +1,9 @@
 {
     "extends": "./tsconfig.base.json",
     "compilerOptions": {
-        "module": "Node16",
-        "moduleResolution": "Node16",
-        "noEmit": true,
+        "module": "es2022",
+        "moduleResolution": "bundler",
+        "emitDeclarationOnly": true,
         "allowImportingTsExtensions": true,
     },
     "include": ["**/*.ts", "**/*.mts", "**/*.js", "**/*.mjs", "**/*.json"],
@@ -13,9 +13,12 @@
         "node_modules",
         "out",
         "src",
+        "test",
+        "**/build"
     ],
     "references": [
         {"path": "src"},
         {"path": "src/test"},
+        {"path": "test"},
     ]
 }

@@ -1,9 +1,0 @@
-node_modules
-cdt-gdb-adapter
-out
-dist
-.eslintrc.js
-Gulpfile.mjs
-jest.*.js
-prepare.js
-register-ts-node.js

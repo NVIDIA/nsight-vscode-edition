@@ -9,13 +9,57 @@
 |                                                                                      |
 \* ---------------------------------------------------------------------------------- */
 
-import * as fse from 'fs-extra';
+import * as fs from 'node:fs';
 import { logger } from '@vscode/debugadapter';
 import { createInterface } from 'node:readline';
 
 import * as types from './types';
+import path from 'node:path';
+import * as os from 'node:os';
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function escapeShellArg(arg: string): string {
+    return `'${arg.replaceAll("'", String.raw`'\''`)}'`;
+}
+
+export function expandTilde(filePath: string): string {
+    if (filePath.startsWith('~')) {
+        return path.join(os.homedir(), filePath.slice(1));
+    }
+    return filePath;
+}
+
+// Recursively find all directories within a given root directory
+export function findAllDirectories(rootDir: string): string[] {
+    const directories: string[] = [rootDir];
+
+    try {
+        const entries = fs.readdirSync(rootDir, {
+            recursive: true,
+            withFileTypes: true
+        });
+
+        for (const entry of entries) {
+            if (entry.isDirectory()) {
+                directories.push(path.join(entry.parentPath ?? rootDir, entry.name));
+            }
+        }
+    } catch (error) {
+        logger.verbose(`Error reading directories from ${rootDir}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    return directories;
+}
+
+export function buildSolibSearchPath(sysroot: string, additionalSOLibSearchPath?: string): string {
+    const directories = findAllDirectories(sysroot);
+
+    if (additionalSOLibSearchPath) {
+        directories.unshift(additionalSOLibSearchPath);
+    }
+
+    return directories.join(':');
+}
+
 export function assertNever(value: never): never {
     throw new Error(`Unexpected value: '${value}'`);
 }
@@ -34,7 +78,6 @@ export function formatCudaDim(dim?: types.CudaDim): string {
     return formattedDim;
 }
 
-// eslint-disable-next-line consistent-return
 export function formatCudaFocus(focus?: types.CudaFocus): string {
     const focusPrefix = 'CUDA:';
 
@@ -87,7 +130,6 @@ export function parseCudaDim(input: string, name?: string): types.CudaDim | unde
     // [3]: z-value or ''
 
     if (!matches || matches.length !== matchGroupCount || !matches[0]) {
-        // eslint-disable-next-line unicorn/no-useless-undefined
         return undefined;
     }
 
@@ -110,7 +152,6 @@ function parseHwCoord(input: string, coordName: string): number | undefined {
     const coordMatch = regex.exec(input);
 
     if (!coordMatch) {
-        // eslint-disable-next-line unicorn/no-useless-undefined
         return undefined;
     }
 
@@ -122,7 +163,6 @@ function parseHwCoord(input: string, coordName: string): number | undefined {
 
 export function parseCudaHwFocus(focus: string): types.CudaHwFocus | undefined {
     if (!focus) {
-        // eslint-disable-next-line unicorn/no-useless-undefined
         return undefined;
     }
 
@@ -131,7 +171,6 @@ export function parseCudaHwFocus(focus: string): types.CudaHwFocus | undefined {
     const lane: number | undefined = parseHwCoord(focus, 'lane');
 
     if (sm === undefined && warp === undefined && lane === undefined) {
-        // eslint-disable-next-line unicorn/no-useless-undefined
         return undefined;
     }
 
@@ -140,7 +179,6 @@ export function parseCudaHwFocus(focus: string): types.CudaHwFocus | undefined {
 
 export function parseCudaSwFocus(focus: string): types.CudaSwFocus | undefined {
     if (!focus) {
-        // eslint-disable-next-line unicorn/no-useless-undefined
         return undefined;
     }
 
@@ -148,7 +186,6 @@ export function parseCudaSwFocus(focus: string): types.CudaSwFocus | undefined {
     const threadIdx: types.CudaDim | undefined = parseCudaDim(focus, 'thread');
 
     if (blockIdx === undefined && threadIdx === undefined) {
-        // eslint-disable-next-line unicorn/no-useless-undefined
         return undefined;
     }
 
@@ -209,7 +246,6 @@ export function isCudaDimValid(dim?: types.CudaDim): boolean {
     return isValid;
 }
 
-// eslint-disable-next-line consistent-return
 export function isCudaFocusValid(focus?: types.CudaFocus): boolean {
     if (!focus) {
         return false;
@@ -290,7 +326,7 @@ export function formatSetFocusCommand(focus?: types.CudaFocus): string {
 }
 
 async function readReleaseFile(releaseFile: string): Promise<Record<string, string>> {
-    const fileStream: fse.ReadStream = fse.createReadStream(releaseFile);
+    const fileStream: fs.ReadStream = fs.createReadStream(releaseFile);
     const fileInterface = createInterface({
         input: fileStream
     });
@@ -298,7 +334,6 @@ async function readReleaseFile(releaseFile: string): Promise<Record<string, stri
     try {
         const fileInfo: Record<string, string> = {};
 
-        // eslint-disable-next-line no-restricted-syntax
         for await (const fileLine of fileInterface) {
             const [key, value] = fileLine.split('=');
             if (key && value) {
@@ -328,10 +363,8 @@ export async function readOsInfo(): Promise<types.OsInfo> {
     };
 
     if (process.platform === 'linux') {
-        // eslint-disable-next-line no-restricted-syntax
         for (const releaseFile of releaseFiles) {
             try {
-                // eslint-disable-next-line no-await-in-loop
                 const releaseFileInfo = await readReleaseFile(releaseFile);
                 if (releaseFileInfo) {
                     osInfo.distribution = releaseFileInfo.ID;

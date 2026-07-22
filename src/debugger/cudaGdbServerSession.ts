@@ -1,4 +1,3 @@
-/* eslint-disable no-param-reassign */
 /* ---------------------------------------------------------------------------------- *\
 |                                                                                      |
 |  Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.                        |
@@ -9,54 +8,16 @@
 |  SPDX-License-Identifier: EPL-2.0                                                    |
 |                                                                                      |
 \* ---------------------------------------------------------------------------------- */
-/* eslint-disable max-classes-per-file */
-import { DebugProtocol } from '@vscode/debugprotocol';
+
+import { type DebugProtocol } from '@vscode/debugprotocol';
 import { GDBBackend, GDBTargetDebugSession } from 'cdt-gdb-adapter';
 import { ChildProcess } from 'node:child_process';
 import { logger, OutputEvent, TerminatedEvent } from '@vscode/debugadapter';
 import { EventEmitter } from 'node:events';
-import { CudaGdbSession, CudaLaunchRequestArguments, CudaGdbBackend } from './cudaGdbSession';
-
-export interface ImageAndSymbolArguments {
-    symbolFileName?: string;
-    symbolOffset?: string;
-    imageFileName?: string;
-    imageOffset?: string;
-}
-
-export interface CudaTargetAttachArguments {
-    type?: string;
-    parameters?: string[];
-    host?: string;
-    port?: string;
-    connectCommands?: string[];
-}
-
-export interface CudaTargetLaunchArguments extends CudaTargetAttachArguments {
-    serverParameters?: string[];
-    server?: string;
-    serverPortRegExp?: string;
-    cwd?: string;
-    serverStartupDelay?: number;
-}
-
-export interface CudaTargetAttachRequestArguments extends CudaLaunchRequestArguments {
-    server?: string;
-    target?: CudaTargetAttachArguments;
-    imageAndSymbols?: ImageAndSymbolArguments;
-    preRunCommands?: string[];
-    serverParameters?: string[];
-    sysroot?: string;
-}
-
-export interface CudaTargetLaunchRequestArguments extends CudaTargetAttachRequestArguments {
-    server?: string;
-    target?: CudaTargetLaunchArguments;
-    imageAndSymbols?: ImageAndSymbolArguments;
-    preRunCommands?: string[];
-    serverParameters?: string[];
-    sysroot?: string;
-}
+import { CudaGdbSession, CudaGdbBackend } from './cudaGdbSession';
+import { type ClientChannel } from 'ssh2';
+import { validateGdbServerArgs } from './cudaGdbServerConfig';
+import { startGDBServerGeneric, type CudaTargetAttachRequestArguments, type CudaTargetLaunchRequestArguments, type CudaTargetLaunchArguments } from './cudaGdbServerAutostart';
 
 class CudaGdbServerBackend extends CudaGdbBackend {
     async spawn(args: CudaTargetAttachRequestArguments): Promise<void> {
@@ -68,6 +29,7 @@ export class CudaGdbServerSession extends CudaGdbSession {
     private readonly gdbTargetDebugSession: GDBTargetDebugSession = new GDBTargetDebugSession();
 
     protected gdbserver?: ChildProcess;
+    #sshChannel?: ClientChannel;
 
     protected async setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments): Promise<void> {
         await (this.gdbTargetDebugSession as any).setBreakPointsRequest.call(this, response, args);
@@ -75,9 +37,8 @@ export class CudaGdbServerSession extends CudaGdbSession {
 
     protected createBackend(): GDBBackend {
         const backend: CudaGdbBackend = new CudaGdbServerBackend(this);
-        const emitter: EventEmitter = backend as EventEmitter;
+        const emitter: EventEmitter = backend as unknown as EventEmitter;
 
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         emitter.on(CudaGdbBackend.eventCudaGdbExit, (code: number, signal: string) => {
             if (code === CudaGdbSession.codeModuleNotFound) {
                 this.sendEvent(new OutputEvent('Failed to find cuda-gdb or a dependent library.'));
@@ -134,13 +95,32 @@ export class CudaGdbServerSession extends CudaGdbSession {
         await (this.gdbTargetDebugSession as any).launchRequest.call(this, response, cdtLaunchArgs);
     }
 
-    /* eslint-disable @typescript-eslint/no-unused-vars */
-    // eslint-disable-next-line class-methods-use-this
     protected async startGDBServer(args: CudaTargetLaunchRequestArguments): Promise<void> {
-        // This function will be implemented later when we support autostart
-        // For now this function is defined so that we do not inadvertently call cdt-gdb-adapter's implementation of this function
+        const validated = validateGdbServerArgs(args, {
+            defaultPort: '2345',
+            requireRemoteHost: false,
+            platform: 'linux',
+            validAutostartModes: ['local', 'linux-remote', 'linux-remote-upload'] as const
+        });
+
+        // Assign validated values back to args
+        args.target = validated.target as CudaTargetLaunchArguments;
+        args.args = validated.programArgs!;
+        args.autostart = args.autostart ?? {};
+        args.autostart.sshPort = validated.sshPort;
+
+        // Local autostart: delegate to cdt-gdb-adapter to spawn locally
+        if (args.autostart?.mode === 'local') {
+            args.target.server = args.target.server ?? 'cuda-gdbserver';
+            args.target.serverParameters = ['--once', `:${args.target.port}`, args.program, ...args.args];
+            await (this.gdbTargetDebugSession as any).startGDBServer.call(this, args);
+            return;
+        }
+
+        // Remote autostart over SSH
+        const { sshChannel } = await startGDBServerGeneric(args);
+        this.#sshChannel = sshChannel;
     }
-    /* eslint-enable @typescript-eslint/no-unused-vars */
 
     protected attachOrLaunchRequest(response: DebugProtocol.Response, request: 'launch' | 'attach', args: CudaTargetLaunchRequestArguments): Promise<void> {
         return (this.gdbTargetDebugSession as any).attachOrLaunchRequest.call(this, response, request, args, true);
@@ -149,7 +129,20 @@ export class CudaGdbServerSession extends CudaGdbSession {
     protected async startGDBAndAttachToTarget(response: DebugProtocol.AttachResponse | DebugProtocol.LaunchResponse, args: CudaTargetAttachRequestArguments): Promise<void> {
         await (this.gdbTargetDebugSession as any).startGDBAndAttachToTarget.call(this, response, args);
     }
-}
 
-/* eslint-enable max-classes-per-file */
-/* eslint-enable no-param-reassign */
+    protected async disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments): Promise<void> {
+        try {
+            if (this.#sshChannel) {
+                logger.verbose('[ssh] Closing SSH channel');
+                this.#sshChannel.close();
+                this.#sshChannel = undefined;
+            }
+
+            // Call parent disconnect (which handles GDB exit and gdbserver cleanup)
+            await (this.gdbTargetDebugSession as any).disconnectRequest.call(this, response, args);
+        } catch (error) {
+            logger.error(`Error during disconnect: ${error instanceof Error ? error.message : String(error)}`);
+            this.sendErrorResponse(response, 1, error instanceof Error ? error.message : String(error));
+        }
+    }
+}

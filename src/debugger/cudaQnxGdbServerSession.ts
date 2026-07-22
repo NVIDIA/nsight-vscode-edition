@@ -8,15 +8,16 @@
 |  SPDX-License-Identifier: EPL-2.0                                                    |
 |                                                                                      |
 \* ---------------------------------------------------------------------------------- */
-/* eslint-disable no-param-reassign */
-/* eslint-disable max-classes-per-file */
-import { DebugProtocol } from '@vscode/debugprotocol';
+import { type DebugProtocol } from '@vscode/debugprotocol';
 import { GDBBackend, GDBTargetDebugSession } from 'cdt-gdb-adapter';
 import { ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { logger, OutputEvent, TerminatedEvent } from '@vscode/debugadapter';
 import { CudaGdbSession, CudaGdbBackend } from './cudaGdbSession';
-import { CudaTargetLaunchRequestArguments, CudaTargetAttachRequestArguments } from './cudaGdbServerSession';
+import { startGDBServerGeneric, type CudaQnxTargetLaunchRequestArguments, type CudaTargetAttachRequestArguments } from './cudaGdbServerAutostart';
+import { type ClientChannel } from 'ssh2';
+import { parseProgramArgs, validateGdbServerArgs } from './cudaGdbServerConfig';
+import { buildSolibSearchPath } from './utils';
 
 class CudaQNXGdbServerBackend extends CudaGdbBackend {
     async spawn(args: CudaTargetAttachRequestArguments): Promise<void> {
@@ -28,6 +29,7 @@ export class CudaQnxGdbServerSession extends CudaGdbSession {
     private readonly gdbTargetDebugSession: GDBTargetDebugSession = new GDBTargetDebugSession();
 
     protected gdbserver?: ChildProcess;
+    #sshChannel?: ClientChannel;
 
     protected isInitialized = false;
 
@@ -37,9 +39,8 @@ export class CudaQnxGdbServerSession extends CudaGdbSession {
 
     protected createBackend(): GDBBackend {
         const backend: CudaGdbBackend = new CudaQNXGdbServerBackend(this);
-        const emitter: EventEmitter = backend as EventEmitter;
+        const emitter: EventEmitter = backend as unknown as EventEmitter;
 
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         emitter.on(CudaGdbBackend.eventCudaGdbExit, (code: number, signal: string) => {
             if (code === CudaGdbSession.codeModuleNotFound) {
                 this.sendEvent(new OutputEvent('Failed to find cuda-gdb or a dependent library.'));
@@ -62,7 +63,7 @@ export class CudaQnxGdbServerSession extends CudaGdbSession {
      * It is intentional that this function overrides the base class implementation
      */
 
-    protected async launchRequest(response: DebugProtocol.LaunchResponse, args: CudaTargetLaunchRequestArguments): Promise<void> {
+    protected async launchRequest(response: DebugProtocol.LaunchResponse, args: CudaQnxTargetLaunchRequestArguments): Promise<void> {
         logger.verbose('Executing launch request');
 
         this.initializeLogger(args);
@@ -73,7 +74,7 @@ export class CudaQnxGdbServerSession extends CudaGdbSession {
             return;
         }
 
-        const cdtLaunchArgs: CudaTargetAttachRequestArguments = { ...args };
+        const cdtLaunchArgs: CudaQnxTargetLaunchRequestArguments = { ...args };
 
         // Assume true for isQNX in the QNX server session
         const isQNX = true;
@@ -91,26 +92,88 @@ export class CudaQnxGdbServerSession extends CudaGdbSession {
             return;
         }
 
+        if (!cdtLaunchArgs.sysroot || cdtLaunchArgs.sysroot.trim().length === 0) {
+            this.sendErrorResponse(response, 1, 'sysroot parameter is required for QNX debugging workflows. Please specify the local directory containing copies of target libraries.');
+            return;
+        }
+
+        cdtLaunchArgs.preRunCommands = cdtLaunchArgs.preRunCommands || [];
+
+        // Handle debuggee CLI arguments for QNX: add "set args" command to preRunCommands
+        // QNX cuda-gdbserver only accepts PORT (no executable/args on command line)
+        const programArgs = parseProgramArgs(args.args);
+        if (programArgs.length > 0) {
+            const escapedArgs = programArgs.join(' ');
+            const setArgsCommand = `set args ${escapedArgs}`;
+            cdtLaunchArgs.preRunCommands.push(setArgsCommand);
+            logger.verbose(`Adding preRunCommand: ${setArgsCommand}`);
+        }
+
         logger.verbose('Calling launch request in super class');
         await (this.gdbTargetDebugSession as any).launchRequest.call(this, response, cdtLaunchArgs);
     }
 
-    /* eslint-disable @typescript-eslint/no-unused-vars */
-    // eslint-disable-next-line class-methods-use-this
-    protected async startGDBServer(args: CudaTargetLaunchRequestArguments): Promise<void> {
-        // This function is defined so that we do not inadvertently call cdt-gdb-adapter's implementation of this function
-    }
-    /* eslint-enable @typescript-eslint/no-unused-vars */
+    protected async startGDBServer(args: CudaQnxTargetLaunchRequestArguments): Promise<void> {
+        // No autostart config: assume cuda-gdbserver is already running on the target.
+        if (!args.autostart?.mode) {
+            return;
+        }
 
-    protected attachOrLaunchRequest(response: DebugProtocol.Response, request: 'launch' | 'attach', args: CudaTargetLaunchRequestArguments): Promise<void> {
+        const validated = validateGdbServerArgs(args, {
+            defaultPort: '2346',
+            requireRemoteHost: true,
+            platform: 'qnx',
+            validAutostartModes: ['qnx-remote', 'qnx-remote-upload'] as const
+        });
+
+        // Assign validated values back to args
+        args.target = validated.target;
+        args.autostart = args.autostart ?? {};
+        args.autostart.sshPort = validated.sshPort;
+
+        // Remote autostart over SSH
+        const { sshChannel } = await startGDBServerGeneric(args);
+        this.#sshChannel = sshChannel;
+    }
+
+    protected attachOrLaunchRequest(response: DebugProtocol.Response, request: 'launch' | 'attach', args: CudaQnxTargetLaunchRequestArguments): Promise<void> {
         return (this.gdbTargetDebugSession as any).attachOrLaunchRequest.call(this, response, request, args, true);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    protected async startGDBAndAttachToTarget(response: DebugProtocol.AttachResponse | DebugProtocol.LaunchResponse, args: CudaTargetAttachRequestArguments, isQNX = true): Promise<void> {
+    protected async startGDBAndAttachToTarget(response: DebugProtocol.AttachResponse | DebugProtocol.LaunchResponse, args: CudaQnxTargetLaunchRequestArguments): Promise<void> {
+        args.preRunCommands = args.preRunCommands || [];
+
+        const sysroot = args.sysroot!; // Already validated in launchRequest
+
+        // Include the user-provided search path before all directories in the QNX sysroot.
+        const solibSearchPath = buildSolibSearchPath(sysroot, args.additionalSOLibSearchPath);
+
+        args.preRunCommands.push(`set sysroot ${sysroot}`, `set solib-search-path ${solibSearchPath}`);
+
+        // executableUploadPath is set by startGDBServerGeneric in autostart modes.
+        // In connect-only mode (no autostart) users may set it explicitly via executableUploadPath.
+        if (args.executableUploadPath) {
+            args.preRunCommands.push(`set nto-executable ${args.executableUploadPath}`);
+        } else if (!args.autostart?.mode) {
+            logger.warn('executableUploadPath not set in connect-only mode; shared-library resolution and backtraces may be incomplete. Set executableUploadPath to the remote path of the debuggee.');
+        }
+
         await (this.gdbTargetDebugSession as any).startGDBAndAttachToTarget.call(this, response, args, true);
     }
-}
 
-/* eslint-enable max-classes-per-file */
-/* eslint-enable no-param-reassign */
+    protected async disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments): Promise<void> {
+        try {
+            if (this.#sshChannel) {
+                logger.verbose('[ssh] Closing SSH channel');
+                this.#sshChannel.close();
+                this.#sshChannel = undefined;
+            }
+
+            // Call parent disconnect (which handles GDB exit and gdbserver cleanup)
+            await (this.gdbTargetDebugSession as any).disconnectRequest.call(this, response, args);
+        } catch (error) {
+            logger.error(`Error during disconnect: ${error instanceof Error ? error.message : String(error)}`);
+            this.sendErrorResponse(response, 1, error instanceof Error ? error.message : String(error));
+        }
+    }
+}

@@ -11,7 +11,7 @@
 
 import { TestUtils } from './testUtils';
 import { CudaDebugClient } from './cudaDebugClient';
-import { CudaLaunchRequestArguments } from '../debugger/cudaGdbSession';
+import { type CudaLaunchRequestArguments } from '../debugger/cudaGdbSession';
 import { expect } from '@jest/globals'; // Use jest imports consistent with the file
 import * as fs from 'node:fs/promises';
 import path from 'node:path'; // Use default import
@@ -299,13 +299,14 @@ describe('Launch argument tests', () => {
                 await dc.stop();
 
                 // 4. Verification: Check if marker file was created
+                let markerExists;
                 try {
                     await fs.access(markerPath);
-                    // If access succeeds, the file exists - test passed!
+                    markerExists = true;
                 } catch {
-                    // If access fails, the file doesn't exist - test failed! Removed unused error binding
-                    throw new Error(`Marker file was not created at ${markerPath}. debuggerPath likely not used.`);
+                    markerExists = false;
                 }
+                expect(markerExists).toBe(true);
 
                 // 5. Cleanup
                 await fs.rm(testDir, { recursive: true, force: true });

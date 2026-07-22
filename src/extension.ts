@@ -9,22 +9,28 @@
 |                                                                                      |
 \* ---------------------------------------------------------------------------------- */
 
-import * as fse from 'fs-extra';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as vscode from 'vscode';
 
 import { activateDebugController } from './debugController';
-import { OsInfo } from './debugger/types';
+import { type OsInfo } from './debugger/types';
 import { readOsInfo } from './debugger/utils';
 import { TelemetryService } from './telemetryService';
 import { AutoStartTaskProvider } from './autoStartTaskProvider';
+import { activateLanguageSupport } from './languageSupportController';
 
 const GA4_API_SECRET = 'VaT67ILSRsGM10lr8Dut7A';
 const GA4_MEASUREMENT_ID = 'G-VELYBBB7X1';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+    const outputChannel = vscode.window.createOutputChannel('Nsight Visual Studio Code Edition');
+    context.subscriptions.push(outputChannel);
+
+    activateLanguageSupport(context, outputChannel);
+
     const packagePath: string = path.resolve(context.extensionPath, 'package.json');
-    const packageJson = await fse.readJson(packagePath);
+    const packageJson = JSON.parse(await readFile(packagePath, 'utf8'));
 
     const telemetry: TelemetryService = new TelemetryService(context, GA4_API_SECRET, GA4_MEASUREMENT_ID, packageJson.version);
 

@@ -15,8 +15,8 @@
 
 import assert from 'node:assert/strict';
 import { expect } from 'chai';
-import { DebugProtocol } from '@vscode/debugprotocol';
-import { StoppedContext, TestUtils } from './testUtils';
+import { type DebugProtocol } from '@vscode/debugprotocol';
+import { type StoppedContext, TestUtils } from './testUtils';
 
 import { CudaDebugClient } from './cudaDebugClient';
 
@@ -99,7 +99,6 @@ describe('Locals and watches tests', () => {
                 customTask: async (stoppedContext: StoppedContext): Promise<StoppedContext> => {
                     const { actLocals } = stoppedContext;
                     const varReference = actLocals.get('a')?.variablesReference;
-                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                     const children = await TestUtils.getChildren(dc, varReference!);
                     expect(children.get('x')?.value).eq('55');
                     expect(children.get('y')?.value).eq('89');
@@ -118,7 +117,6 @@ describe('Locals and watches tests', () => {
                 customTask: async (stoppedContext: StoppedContext): Promise<StoppedContext> => {
                     const { actLocals } = stoppedContext;
                     const varReference = actLocals.get('a')?.variablesReference;
-                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                     const children = await TestUtils.getChildren(dc, varReference!);
                     expect(children.get('x')?.value).eq('233');
                     expect(children.get('y')?.value).eq('89');
@@ -232,7 +230,6 @@ describe('Locals and watches tests', () => {
                 customTask: async (stoppedContext: StoppedContext): Promise<StoppedContext> => {
                     const { actLocals } = stoppedContext;
                     const varReference = actLocals.get('b')?.variablesReference;
-                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                     const children = await TestUtils.getChildren(dc, varReference!);
                     expect(children.get('x')?.value).eq('8');
                     expect(children.get('y')?.value).eq('13');
@@ -259,21 +256,15 @@ describe('Locals and watches tests', () => {
 
         await dc.configurationDoneRequest();
 
-        // eslint-disable-next-line unicorn/no-for-loop
-        for (let i = 0; i < expectedSequence.length; i += 1) {
-            const expectedBp = expectedSequence[i];
-
-            // eslint-disable-next-line no-await-in-loop
+        for (const expectedBp of expectedSequence) {
             let stoppedContext = await TestUtils.verifyLocalsOnStop(dc, framesSource, expectedBp.line, 'breakpoint', expectedBp.expLocals);
 
             if (expectedBp.customTask) {
-                // eslint-disable-next-line no-await-in-loop
                 stoppedContext = await expectedBp.customTask(stoppedContext);
             }
 
             console.log(`Verification successful at line ${expectedBp.line}.`);
 
-            // eslint-disable-next-line no-await-in-loop
             await dc.continueRequest({ threadId: stoppedContext.threadId });
         }
     });
@@ -294,7 +285,6 @@ describe('Locals and watches tests', () => {
 
         const getChildren = (vars: Map<string, DebugProtocol.Variable>, varName: string): Promise<Map<string, DebugProtocol.Variable>> => {
             const myInputRef = vars.get(varName)?.variablesReference;
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             return TestUtils.getChildren(dc, myInputRef!);
         };
 
@@ -307,14 +297,12 @@ describe('Locals and watches tests', () => {
             const arrChildren = await getChildren(children, 'arr');
 
             for (let i = 0; i < 5; i += 1) {
-                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 expect(Number.parseInt(arrChildren.get(i.toString())!.value)).eq(slot + i + 2);
             }
         };
 
         const stoppedContext = await TestUtils.verifyLocalsOnStop(dc, variablesSource, 90, 'breakpoint', [{ name: 'myInput' }]);
         const { actLocals } = stoppedContext;
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         await verifyEntry(actLocals.get('myInput')!.variablesReference, 0);
 
         const idx = 19;

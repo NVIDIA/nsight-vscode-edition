@@ -9,11 +9,8 @@
 |                                                                                      |
 \* ---------------------------------------------------------------------------------- */
 
-/* eslint-disable max-classes-per-file */
-/* eslint-disable class-methods-use-this */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import * as vscode from 'vscode';
-import { DebugProtocol } from '@vscode/debugprotocol';
+import { type DebugProtocol } from '@vscode/debugprotocol';
 
 import { CudaDebugProtocol } from './debugger/cudaDebugProtocol';
 import { CudaGdbSession } from './debugger/cudaGdbSession';
@@ -35,7 +32,6 @@ class InlineDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory 
         if (session.type === cudaGdbServerType) {
             const debugServerSession = new CudaGdbServerSession();
             return new vscode.DebugAdapterInlineImplementation(debugServerSession);
-            // eslint-disable-next-line no-else-return
         } else if (session.type === cudaQnxGdbServerType) {
             const debugQNXServerSession = new CudaQnxGdbServerSession();
             return new vscode.DebugAdapterInlineImplementation(debugQNXServerSession);
@@ -236,7 +232,3 @@ export function activateDebugController(context: vscode.ExtensionContext, teleme
         vscode.commands.registerCommand(cudaPickProcess, async () => pickProcess())
     );
 }
-
-/* eslint-enable @typescript-eslint/no-unused-vars */
-/* eslint-enable class-methods-use-this */
-/* eslint-enable max-classes-per-file */

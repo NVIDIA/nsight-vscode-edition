@@ -9,10 +9,8 @@
 |                                                                                      |
 \* ---------------------------------------------------------------------------------- */
 
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
-
 import { expect } from 'chai';
-import { DebugProtocol } from '@vscode/debugprotocol';
+import { type DebugProtocol } from '@vscode/debugprotocol';
 import { TestUtils } from './testUtils';
 import { CudaDebugClient } from './cudaDebugClient';
 
@@ -198,5 +196,3 @@ describe('Variable assignment tests', () => {
         expect(localsRef.get('myResult')!.value).eq('74');
     });
 });
-
-/* eslint-enable @typescript-eslint/no-non-null-assertion */
