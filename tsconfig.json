@@ -4,7 +4,7 @@
         "module": "es2022",
         "moduleResolution": "bundler",
         "emitDeclarationOnly": true,
-        "allowImportingTsExtensions": true,
+        "allowImportingTsExtensions": true
     },
     "include": ["**/*.ts", "**/*.mts", "**/*.js", "**/*.mjs", "**/*.json"],
     "exclude": [
@@ -16,9 +16,5 @@
         "test",
         "**/build"
     ],
-    "references": [
-        {"path": "src"},
-        {"path": "src/test"},
-        {"path": "test"},
-    ]
+    "references": [{ "path": "src" }, { "path": "src/test" }, { "path": "test" }]
 }

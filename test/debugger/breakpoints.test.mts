@@ -1,4 +1,26 @@
-import { usingWorkspace } from './test-client.mts';
+import { type DebugProtocol } from '@vscode/debugprotocol';
+import waitForExpect from 'wait-for-expect';
+import { type DebugSession, type Workspace, usingWorkspace } from './test-client.mts';
+
+// default.cu has no markers; its dispatch line runs before the selected test prop.
+async function dispatchLine(ws: Workspace): Promise<number> {
+    const lines = await ws.file('default/default.cu').readAllLines();
+    const index = lines.findIndex((line) => line.includes('return it->second();'));
+    expect(index).toBeGreaterThanOrEqual(0);
+    return index + 1;
+}
+
+function captureOutputs(session: DebugSession): string[] {
+    const outputs: string[] = [];
+    session.dap.on('output', (event: DebugProtocol.OutputEvent) => outputs.push(event.body.output));
+    return outputs;
+}
+
+function trackTermination(session: DebugSession): () => boolean {
+    let terminated = false;
+    session.dap.on('terminated', () => (terminated = true));
+    return () => terminated;
+}
 
 describe('Breakpoints', () => {
     // ===== LINE-BASED BREAKPOINTS =====
@@ -33,6 +55,10 @@ describe('Breakpoints', () => {
                 // Continue to get second hit (from device code)
                 await session.continue();
                 await bp.waitForBreakCount(2);
+
+                // Once the device code is loaded this breakpoint has two locations, which GDB
+                // reports with a different MI shape; it must still be tracked and verified.
+                bp.expectToBeVerified();
             }));
 
         test('Set line breakpoint while program is running', () =>
@@ -174,7 +200,10 @@ describe('Breakpoints', () => {
         test('Enable/disable function breakpoint', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/variables.cu');
-                const bp = await src.createFunctionBreakpoint({ name: 'cudaComputeHashInner', isEnabled: false });
+                const bp = await src.createFunctionBreakpoint({
+                    name: 'cudaComputeHashInner',
+                    isEnabled: false
+                });
 
                 await src.startDebugging();
                 expect(bp.breakCount).toBe(0);
@@ -244,38 +273,57 @@ describe('Breakpoints', () => {
         test('Conditional breakpoint with equality', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/single-thread.cu');
-                const bp = await src.createBreakpoint({ line: '📍loopIteration', condition: 'i == 3' });
+                const bp = await src.createBreakpoint({
+                    line: '📍loopIteration',
+                    condition: 'i == 3'
+                });
 
-                const session = await ws.startDebugging('default:launch', { args: ['single-thread-warp'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['single-thread-warp']
+                });
                 await bp.waitForBreakCount(1);
 
                 const frame = await session.lastStopStackFrame();
                 expect(frame.name).toBe('singleThreadKernel');
                 const locals = await frame.locals();
-                expect(locals).toEqual(expect.objectContaining({ i: expect.objectContaining({ value: '3' }) }));
+                expect(locals).toEqual(
+                    expect.objectContaining({ i: expect.objectContaining({ value: '3' }) })
+                );
             }));
 
         test('Conditional breakpoint with comparison operator', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/single-thread.cu');
-                const bp = await src.createBreakpoint({ line: '📍loopIteration', condition: 'i > 2' });
+                const bp = await src.createBreakpoint({
+                    line: '📍loopIteration',
+                    condition: 'i > 2'
+                });
 
-                const session = await ws.startDebugging('default:launch', { args: ['single-thread-warp'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['single-thread-warp']
+                });
                 await bp.waitForBreakCount(1);
 
                 const frame = await session.lastStopStackFrame();
                 expect(frame.name).toBe('singleThreadKernel');
                 const locals = await frame.locals();
 
-                expect(locals).toEqual(expect.objectContaining({ i: expect.objectContaining({ value: '3' }) }));
+                expect(locals).toEqual(
+                    expect.objectContaining({ i: expect.objectContaining({ value: '3' }) })
+                );
             }));
 
         test('Conditional breakpoint with range', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/single-thread.cu');
-                const bp = await src.createBreakpoint({ line: '📍loopIteration', condition: 'i >= 5 && i <= 7' });
+                const bp = await src.createBreakpoint({
+                    line: '📍loopIteration',
+                    condition: 'i >= 5 && i <= 7'
+                });
 
-                const session = await ws.startDebugging('default:launch', { args: ['single-thread-warp'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['single-thread-warp']
+                });
                 await bp.waitForBreakCount(1);
 
                 const frame = await session.lastStopStackFrame();
@@ -290,31 +338,47 @@ describe('Breakpoints', () => {
         test('Conditional breakpoint with arithmetic expression', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/single-thread.cu');
-                const bp = await src.createBreakpoint({ line: '📍loopIteration', condition: 'i * 2 == 8' });
+                const bp = await src.createBreakpoint({
+                    line: '📍loopIteration',
+                    condition: 'i * 2 == 8'
+                });
 
-                const session = await ws.startDebugging('default:launch', { args: ['single-thread-warp'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['single-thread-warp']
+                });
                 await bp.waitForBreakCount(1);
 
                 const frame = await session.lastStopStackFrame();
                 expect(frame.name).toBe('singleThreadKernel');
                 const locals = await frame.locals();
 
-                expect(locals).toEqual(expect.objectContaining({ i: expect.objectContaining({ value: '4' }) }));
+                expect(locals).toEqual(
+                    expect.objectContaining({ i: expect.objectContaining({ value: '4' }) })
+                );
             }));
 
         test('Conditional function breakpoint', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/single-thread.cu');
-                const bp = await src.createFunctionBreakpoint({ name: 'singleThreadKernel', condition: 'iterations == 10' });
+                const bp = await src.createFunctionBreakpoint({
+                    name: 'singleThreadKernel',
+                    condition: 'iterations == 10'
+                });
 
-                const session = await ws.startDebugging('default:launch', { args: ['single-thread-warp'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['single-thread-warp']
+                });
                 await bp.waitForBreakCount(1);
 
                 const frame = await session.lastStopStackFrame();
                 expect(frame.name).toBe('singleThreadKernel');
                 const locals = await frame.locals();
 
-                expect(locals).toEqual(expect.objectContaining({ iterations: expect.objectContaining({ value: '10' }) }));
+                expect(locals).toEqual(
+                    expect.objectContaining({
+                        iterations: expect.objectContaining({ value: '10' })
+                    })
+                );
             }));
     });
 
@@ -324,9 +388,14 @@ describe('Breakpoints', () => {
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/single-thread.cu');
 
-                const bp = await src.createBreakpoint({ line: '📍loopIteration', hitCondition: '3' });
+                const bp = await src.createBreakpoint({
+                    line: '📍loopIteration',
+                    hitCondition: '3'
+                });
 
-                const session = await ws.startDebugging('default:launch', { args: ['single-thread-warp'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['single-thread-warp']
+                });
 
                 await bp.waitForBreakCount(1);
 
@@ -336,14 +405,22 @@ describe('Breakpoints', () => {
 
                 const locals = await frame.locals();
                 expect(locals).toBeDefined();
-                expect(locals).toEqual(expect.objectContaining({ i: expect.objectContaining({ value: '2' }) }));
+                expect(locals).toEqual(
+                    expect.objectContaining({ i: expect.objectContaining({ value: '2' }) })
+                );
             }));
 
         test('Combined conditional and hitcount', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/single-thread.cu');
-                const bp = await src.createBreakpoint({ line: '📍loopIteration', condition: 'i == 5', hitCondition: '1' });
-                const session = await ws.startDebugging('default:launch', { args: ['single-thread-warp'] });
+                const bp = await src.createBreakpoint({
+                    line: '📍loopIteration',
+                    condition: 'i == 5',
+                    hitCondition: '1'
+                });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['single-thread-warp']
+                });
 
                 await bp.waitForBreakCount(1);
 
@@ -353,14 +430,21 @@ describe('Breakpoints', () => {
 
                 const locals = await frame.locals();
                 expect(locals).toBeDefined();
-                expect(locals).toEqual(expect.objectContaining({ i: expect.objectContaining({ value: '5' }) }));
+                expect(locals).toEqual(
+                    expect.objectContaining({ i: expect.objectContaining({ value: '5' }) })
+                );
             }));
 
         test('Hitcount with greater than syntax', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/single-thread.cu');
-                const bp = await src.createBreakpoint({ line: '📍loopIteration', hitCondition: '> 5' });
-                const session = await ws.startDebugging('default:launch', { args: ['single-thread-warp'] });
+                const bp = await src.createBreakpoint({
+                    line: '📍loopIteration',
+                    hitCondition: '> 5'
+                });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['single-thread-warp']
+                });
 
                 await bp.waitForBreakCount(1);
 
@@ -370,16 +454,23 @@ describe('Breakpoints', () => {
 
                 const locals = await frame.locals();
                 expect(locals).toBeDefined();
-                expect(locals).toEqual(expect.objectContaining({ i: expect.objectContaining({ value: '5' }) }));
+                expect(locals).toEqual(
+                    expect.objectContaining({ i: expect.objectContaining({ value: '5' }) })
+                );
             }));
 
         test('Hitcount with function breakpoint', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/single-thread.cu');
 
-                const bp = await src.createFunctionBreakpoint({ name: 'singleThreadKernel', hitCondition: '1' });
+                const bp = await src.createFunctionBreakpoint({
+                    name: 'singleThreadKernel',
+                    hitCondition: '1'
+                });
 
-                const session = await ws.startDebugging('default:launch', { args: ['single-thread-warp'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['single-thread-warp']
+                });
 
                 await bp.waitForBreakCount(1);
 
@@ -400,31 +491,31 @@ describe('Breakpoints', () => {
                 bp.expectToBeVerified();
             }));
 
-        test('Line breakpoint on empty line is moved to valid location', () =>
+        test('Line breakpoint on empty line stays pending', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/variables.cu');
                 const bp = await src.createBreakpoint({ line: 25 });
 
                 await src.startDebugging();
-                bp.expectToBeVerified();
+                bp.expectToBePending();
             }));
 
-        test('Line breakpoint on include is moved to valid location', () =>
+        test('Line breakpoint on include stays pending', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/variables.cu');
                 const bp = await src.createBreakpoint({ line: 26 });
 
                 await src.startDebugging();
-                bp.expectToBeVerified();
+                bp.expectToBePending();
             }));
 
-        test('Line breakpoint on nonexistant line is moved to valid location', () =>
+        test('Line breakpoint on nonexistant line stays pending', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/variables.cu');
                 const bp = await src.createBreakpoint({ line: 99_999_999 });
 
                 await src.startDebugging();
-                bp.expectToBeVerified();
+                bp.expectToBePending();
             }));
 
         test('Function breakpoint on non-existent function does not hit', () =>
@@ -434,6 +525,130 @@ describe('Breakpoints', () => {
 
                 await src.startDebugging();
                 expect(bp.breakCount).toBe(0);
+            }));
+
+        // The adapter inserts breakpoints with -f, so a name that gdb can resolve later
+        // becomes a genuine pending breakpoint rather than an error.
+        test('expectToBePending accepts a non-existent but parseable function', () =>
+            usingWorkspace(async (ws) => {
+                const src = ws.file('default/variables.cu');
+                const bp = await src.createFunctionBreakpoint({ name: 'NonExistentFunction' });
+
+                await src.startDebugging();
+                bp.expectToBePending();
+            }));
+
+        // A name gdb cannot parse as a location fails -break-insert outright, and the
+        // adapter reports that as verified: false with a message and no id.
+        test('expectToBePending rejects a failed insertion', () =>
+            usingWorkspace(async (ws) => {
+                const src = ws.file('default/variables.cu');
+                const bp = await src.createFunctionBreakpoint({ name: 'no such fn' });
+
+                await src.startDebugging();
+
+                expect(bp.dap).toEqual(
+                    expect.objectContaining({
+                        verified: false,
+                        message: expect.any(String)
+                    })
+                );
+                expect(bp.dap).not.toHaveProperty('id');
+
+                expect(() => bp.expectToBePending()).toThrow();
+            }));
+    });
+
+    // ===== LOGPOINTS =====
+    // VSCode sends one setBreakpoints request per source, so a request for one source must
+    // leave the logpoints of every other source intact. These use host lines so that the
+    // breakpoints are verified, not pending, when they are set.
+    describe('Logpoints', () => {
+        const logPrefix = 'hostCall logpoint';
+
+        test('Logpoint survives setBreakpoints for another source (empty list)', () =>
+            usingWorkspace(async (ws) => {
+                const src = ws.file('default/variables.cu');
+                const otherSrc = ws.file('default/default.cu');
+                const logpoint = await src.createBreakpoint({
+                    line: '📍hostCall',
+                    logMessage: `${logPrefix} hostSum={hostSum}`
+                });
+
+                const session = await ws.createDebugSession('default:launch');
+                const outputs = captureOutputs(session);
+                const isTerminated = trackTermination(session);
+                await session.startDebugging();
+                logpoint.expectToBeVerified();
+
+                await session.reapplyBreakpoints(otherSrc.path);
+
+                await session.configurationDone();
+                await waitForExpect(() =>
+                    expect(isTerminated() || logpoint.breakCount > 0).toBeTrue()
+                );
+
+                expect(logpoint.breakCount).toBe(0);
+                expect(outputs.some((o) => o.startsWith(logPrefix))).toBeTrue();
+            }));
+
+        test('Logpoint survives setBreakpoints for another source (with breakpoint)', () =>
+            usingWorkspace(async (ws) => {
+                const src = ws.file('default/variables.cu');
+                const logpoint = await src.createBreakpoint({
+                    line: '📍hostCall',
+                    logMessage: `${logPrefix} hostSum={hostSum}`
+                });
+                // Created after the logpoint, so its source's request is sent second.
+                const otherBp = await ws
+                    .file('default/default.cu')
+                    .createBreakpoint({ line: await dispatchLine(ws) });
+
+                const session = await ws.createDebugSession('default:launch');
+                const outputs = captureOutputs(session);
+                const isTerminated = trackTermination(session);
+                await session.startDebugging();
+                logpoint.expectToBeVerified();
+                otherBp.expectToBeVerified();
+
+                await session.configurationDone();
+                await otherBp.waitForBreakCount(1);
+
+                await session.continue();
+                await waitForExpect(() =>
+                    expect(isTerminated() || logpoint.breakCount > 0).toBeTrue()
+                );
+
+                expect(logpoint.breakCount).toBe(0);
+                expect(otherBp.breakCount).toBe(1);
+                expect(outputs.some((o) => o.startsWith(logPrefix))).toBeTrue();
+            }));
+
+        test('Logpoint turned into a plain breakpoint stops again', () =>
+            usingWorkspace(async (ws) => {
+                const src = ws.file('default/variables.cu');
+                const logpoint = await src.createBreakpoint({
+                    line: '📍hostCall',
+                    logMessage: `${logPrefix} hostSum={hostSum}`
+                });
+
+                const session = await ws.createDebugSession('default:launch');
+                const outputs = captureOutputs(session);
+                await session.startDebugging();
+                logpoint.expectToBeVerified();
+
+                // Re-send the same line without logMessage in a single request, as VSCode does
+                // when the log message is cleared. GDB keeps the same breakpoint number, so only
+                // clearing this source's entries turns it back into a stopping breakpoint.
+                await session.dap.send('setBreakpoints', {
+                    source: { path: src.path },
+                    breakpoints: [{ line: logpoint.line }]
+                });
+
+                await session.configurationDone();
+                await logpoint.waitForBreakCount(1);
+
+                expect(outputs.some((o) => o.startsWith(logPrefix))).toBeFalse();
             }));
     });
 
@@ -504,7 +719,10 @@ describe('Breakpoints', () => {
                 const src = ws.file('default/concurrent.cu');
                 await src.startDebugging();
 
-                const [lineBp, fnBp] = await Promise.all([src.createBreakpoint({ line: '📍device1' }), src.createFunctionBreakpoint({ name: 'kernelFunc' })]);
+                const [lineBp, fnBp] = await Promise.all([
+                    src.createBreakpoint({ line: '📍device1' }),
+                    src.createFunctionBreakpoint({ name: 'kernelFunc' })
+                ]);
 
                 lineBp.expectToBeVerified();
                 fnBp.expectToBeVerified();

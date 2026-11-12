@@ -40,7 +40,12 @@ describe('Variable assignment tests', () => {
         }
 
         await dc.configurationDoneRequest();
-        const { threadId, frameId } = await TestUtils.assertStoppedLocation(dc, 'breakpoint', varAssignSource, 37);
+        const { threadId, frameId } = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            varAssignSource,
+            37
+        );
 
         const localsScopeReference = await TestUtils.getLocalsScopeReference(dc, frameId);
         const locals = await TestUtils.getChildren(dc, localsScopeReference);
@@ -65,7 +70,10 @@ describe('Variable assignment tests', () => {
     });
 
     it('Variable assignment works for structs', async () => {
-        const verifyStructs = async (locals: Map<string, DebugProtocol.Variable>, values: string[]): Promise<void> => {
+        const verifyStructs = async (
+            locals: Map<string, DebugProtocol.Variable>,
+            values: string[]
+        ): Promise<void> => {
             const a1VarRef = locals.get('a1')!.variablesReference;
             const a1Children = await TestUtils.getChildren(dc, a1VarRef);
             expect(a1Children.get('alpha')!.value).eq(values[0]);
@@ -94,7 +102,12 @@ describe('Variable assignment tests', () => {
         }
 
         await dc.configurationDoneRequest();
-        const { frameId } = await TestUtils.assertStoppedLocation(dc, 'breakpoint', varAssignSource, 28);
+        const { frameId } = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            varAssignSource,
+            28
+        );
 
         let localsScopeReference = await TestUtils.getLocalsScopeReference(dc, frameId);
         let locals = await TestUtils.getChildren(dc, localsScopeReference);
@@ -133,10 +146,16 @@ describe('Variable assignment tests', () => {
     const verifyAndManipulateLocals = async (frameId: number): Promise<void> => {
         let localsRef = await TestUtils.getLocalsScopeReference(dc, frameId);
         let locals = await TestUtils.getChildren(dc, localsRef);
-        let myInputChildren = await TestUtils.getChildren(dc, locals.get('myInput')!.variablesReference);
+        let myInputChildren = await TestUtils.getChildren(
+            dc,
+            locals.get('myInput')!.variablesReference
+        );
         let takeYourPickReference = myInputChildren.get('takeYourPick')!.variablesReference;
         let takeYourPickChildren = await TestUtils.getChildren(dc, takeYourPickReference);
-        const halfAndHalfChildren = await TestUtils.getChildren(dc, takeYourPickChildren.get('halfAndHalf')!.variablesReference);
+        const halfAndHalfChildren = await TestUtils.getChildren(
+            dc,
+            takeYourPickChildren.get('halfAndHalf')!.variablesReference
+        );
 
         expect(halfAndHalfChildren.get('lowHalf')).property('value').eq('1');
         expect(halfAndHalfChildren.get('highHalf')).property('value').eq('3');
@@ -154,12 +173,17 @@ describe('Variable assignment tests', () => {
 
         localsRef = await TestUtils.getLocalsScopeReference(dc, frameId);
         locals = await TestUtils.getChildren(dc, localsRef);
-        myInputChildren = await TestUtils.getChildren(dc, locals.get('myInput')!.variablesReference);
+        myInputChildren = await TestUtils.getChildren(
+            dc,
+            locals.get('myInput')!.variablesReference
+        );
         takeYourPickReference = myInputChildren.get('takeYourPick')!.variablesReference;
 
         // The variable needs to be expanded before its children can be assigned.
         takeYourPickChildren = await TestUtils.getChildren(dc, takeYourPickReference);
-        expect(takeYourPickChildren.get('whole')).property('value').not.undefined.and.not.eq('17179869188');
+        expect(takeYourPickChildren.get('whole'))
+            .property('value')
+            .not.undefined.and.not.eq('17179869188');
 
         invalidatedPromise = dc.waitForEvent('invalidated');
         await dc.setVariableRequest({
@@ -185,12 +209,22 @@ describe('Variable assignment tests', () => {
         }
 
         await dc.configurationDoneRequest();
-        const { threadId, frameId } = await TestUtils.assertStoppedLocation(dc, 'breakpoint', 'variables/variables.cu', 92);
+        const { threadId, frameId } = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            'variables/variables.cu',
+            92
+        );
 
         await verifyAndManipulateLocals(frameId);
 
         await dc.continueRequest({ threadId });
-        const stoppedAtRet = await TestUtils.assertStoppedLocation(dc, 'breakpoint', 'variables/variables.cu', 107);
+        const stoppedAtRet = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            'variables/variables.cu',
+            107
+        );
 
         const localsRef = await TestUtils.getLocals(dc, stoppedAtRet.frameId);
         expect(localsRef.get('myResult')!.value).eq('74');

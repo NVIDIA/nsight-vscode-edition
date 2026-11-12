@@ -9,6 +9,5 @@
             "program": "${workspaceFolder}/frames",
             "arguments": ""
         }
-
     ]
 }

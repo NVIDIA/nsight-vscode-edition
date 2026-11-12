@@ -62,23 +62,33 @@ export async function getAttachItems(): Promise<ProcessItem[]> {
     const pidEndIdx = output[0].indexOf('PID') + 3;
 
     // based on the the format ps returns info, the pids would start after the first set of spaces we encounter
-    const pidArray = output.map((x: string) => Number.parseInt(x.slice(x.indexOf(' '), pidEndIdx).trimStart())).slice(1);
+    const pidArray = output
+        .map((x: string) => Number.parseInt(x.slice(x.indexOf(' '), pidEndIdx).trimStart()))
+        .slice(1);
 
     const cmdArray = output
         .map((x: string) => {
             // figuring out the index of the executable based on the last index of ':'
             const fullPathCmdSlice = x.slice(x.lastIndexOf(':') + 3, x.length).trimStart();
-            const execCmdSlice = fullPathCmdSlice.slice(fullPathCmdSlice.lastIndexOf('/') + 1, fullPathCmdSlice.length);
+            const execCmdSlice = fullPathCmdSlice.slice(
+                fullPathCmdSlice.lastIndexOf('/') + 1,
+                fullPathCmdSlice.length
+            );
             return execCmdSlice;
         })
         .slice(1);
 
     const username = output.map((x: string) => x.slice(0, x.indexOf(' ')).trimStart()).slice(1);
 
-    const items: ProcessItem[] = pidArray.map((item, index) => ({ pid: pidArray[index], label: `${username[index]} : ${cmdArray[index]}` }));
+    const items: ProcessItem[] = pidArray.map((item, index) => ({
+        pid: pidArray[index],
+        label: `${username[index]} : ${cmdArray[index]}`
+    }));
     items.sort((a, b) => 0 - (a.label > b.label ? -1 : 1));
 
-    const quickPickList: ProcessItem[] = items.filter((item: ProcessItem) => item.label.trim() !== ':');
+    const quickPickList: ProcessItem[] = items.filter(
+        (item: ProcessItem) => item.label.trim() !== ':'
+    );
 
     return quickPickList;
 }

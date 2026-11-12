@@ -72,7 +72,12 @@ describe('Launch argument tests', () => {
         );
 
         await dc.configurationDoneRequest();
-        const { frameId } = await TestUtils.assertStoppedLocation(dc, 'breakpoint', 'launchEnvVars.cpp', 28);
+        const { frameId } = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            'launchEnvVars.cpp',
+            28
+        );
 
         const locals = await TestUtils.getLocalsAsObject(dc, frameId);
         expect(locals).toEqual(
@@ -102,14 +107,23 @@ describe('Launch argument tests', () => {
 
     it('setupCommands: Simple successful command', async () => {
         dc = await TestUtils.createDebugClient();
-        const launchArguments: CudaLaunchRequestArguments = await TestUtils.getLaunchArguments('launchEnvVars/launchEnvVars');
+        const launchArguments: CudaLaunchRequestArguments = await TestUtils.getLaunchArguments(
+            'launchEnvVars/launchEnvVars'
+        );
         launchArguments.stopAtEntry = true;
-        launchArguments.setupCommands = [{ text: 'set $test_var = 123', ignoreFailures: false, description: 'Set test var' }];
+        launchArguments.setupCommands = [
+            { text: 'set $test_var = 123', ignoreFailures: false, description: 'Set test var' }
+        ];
 
         await dc.launchRequest(launchArguments);
         await dc.configurationDoneRequest();
         // Expect stop reason 'breakpoint' due to stopAtEntry
-        const { frameId } = await TestUtils.assertStoppedLocation(dc, 'breakpoint', 'launchEnvVars.cpp', 8);
+        const { frameId } = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            'launchEnvVars.cpp',
+            8
+        );
 
         // Use evaluateRequest directly and validate structure
         const evalResp = await dc.evaluateRequest({ expression: '$test_var', frameId: frameId });
@@ -125,12 +139,22 @@ describe('Launch argument tests', () => {
 
     it('setupCommands: Failing command stops execution (ignoreFailures: false)', async () => {
         dc = await TestUtils.createDebugClient();
-        const launchArguments: CudaLaunchRequestArguments = await TestUtils.getLaunchArguments('launchEnvVars/launchEnvVars');
+        const launchArguments: CudaLaunchRequestArguments = await TestUtils.getLaunchArguments(
+            'launchEnvVars/launchEnvVars'
+        );
         launchArguments.stopAtEntry = true; // Need this to attempt to stop *after* setup commands
         launchArguments.setupCommands = [
-            { text: 'set $test_var_fail_1 = 1', ignoreFailures: false, description: 'Set test var 1' },
+            {
+                text: 'set $test_var_fail_1 = 1',
+                ignoreFailures: false,
+                description: 'Set test var 1'
+            },
             { text: 'invalid-gdb-command', ignoreFailures: false, description: 'This will fail' },
-            { text: 'set $test_var_fail_2 = 2', ignoreFailures: false, description: 'Set test var 2 (should not run)' }
+            {
+                text: 'set $test_var_fail_2 = 2',
+                ignoreFailures: false,
+                description: 'Set test var 2 (should not run)'
+            }
         ];
 
         // Launch should fail because of the invalid command with ignoreFailures: false
@@ -139,21 +163,43 @@ describe('Launch argument tests', () => {
 
     it('setupCommands: Failing command is ignored (ignoreFailures: true)', async () => {
         dc = await TestUtils.createDebugClient();
-        const launchArguments: CudaLaunchRequestArguments = await TestUtils.getLaunchArguments('launchEnvVars/launchEnvVars');
+        const launchArguments: CudaLaunchRequestArguments = await TestUtils.getLaunchArguments(
+            'launchEnvVars/launchEnvVars'
+        );
         launchArguments.stopAtEntry = true;
         launchArguments.setupCommands = [
-            { text: 'set $test_var_ignore_1 = 1', ignoreFailures: false, description: 'Set test var 1' },
-            { text: 'invalid-gdb-command', ignoreFailures: true, description: 'This will fail but be ignored' },
-            { text: 'set $test_var_ignore_2 = 2', ignoreFailures: false, description: 'Set test var 2 (should run)' }
+            {
+                text: 'set $test_var_ignore_1 = 1',
+                ignoreFailures: false,
+                description: 'Set test var 1'
+            },
+            {
+                text: 'invalid-gdb-command',
+                ignoreFailures: true,
+                description: 'This will fail but be ignored'
+            },
+            {
+                text: 'set $test_var_ignore_2 = 2',
+                ignoreFailures: false,
+                description: 'Set test var 2 (should run)'
+            }
         ];
 
         await dc.launchRequest(launchArguments);
         await dc.configurationDoneRequest();
         // Expect stop reason 'breakpoint' due to stopAtEntry
-        const { frameId } = await TestUtils.assertStoppedLocation(dc, 'breakpoint', 'launchEnvVars.cpp', 8);
+        const { frameId } = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            'launchEnvVars.cpp',
+            8
+        );
 
         // Check first variable was set
-        const evalResp1 = await dc.evaluateRequest({ expression: '$test_var_ignore_1', frameId: frameId });
+        const evalResp1 = await dc.evaluateRequest({
+            expression: '$test_var_ignore_1',
+            frameId: frameId
+        });
         expect(evalResp1).toEqual(
             expect.objectContaining({
                 body: expect.objectContaining({
@@ -164,7 +210,10 @@ describe('Launch argument tests', () => {
         );
 
         // Check second variable was also set (failure was ignored)
-        const evalResp2 = await dc.evaluateRequest({ expression: '$test_var_ignore_2', frameId: frameId });
+        const evalResp2 = await dc.evaluateRequest({
+            expression: '$test_var_ignore_2',
+            frameId: frameId
+        });
         expect(evalResp2).toEqual(
             expect.objectContaining({
                 body: expect.objectContaining({
@@ -177,17 +226,26 @@ describe('Launch argument tests', () => {
 
     it('setupCommands: Mixed initCommands (string) and setupCommands (object)', async () => {
         dc = await TestUtils.createDebugClient();
-        const launchArguments: CudaLaunchRequestArguments = await TestUtils.getLaunchArguments('launchEnvVars/launchEnvVars');
+        const launchArguments: CudaLaunchRequestArguments = await TestUtils.getLaunchArguments(
+            'launchEnvVars/launchEnvVars'
+        );
         launchArguments.stopAtEntry = true;
         // initCommands are processed first
         launchArguments.initCommands = ['set $init_var = 111'];
         // setupCommands are processed next
-        launchArguments.setupCommands = [{ text: 'set $setup_var = 222', ignoreFailures: false, description: 'Setup var' }];
+        launchArguments.setupCommands = [
+            { text: 'set $setup_var = 222', ignoreFailures: false, description: 'Setup var' }
+        ];
 
         await dc.launchRequest(launchArguments);
         await dc.configurationDoneRequest();
         // Expect stop reason 'breakpoint' due to stopAtEntry
-        const { frameId } = await TestUtils.assertStoppedLocation(dc, 'breakpoint', 'launchEnvVars.cpp', 8);
+        const { frameId } = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            'launchEnvVars.cpp',
+            8
+        );
 
         // Check initCommands variable
         const evalResp1 = await dc.evaluateRequest({ expression: '$init_var', frameId: frameId });
@@ -214,19 +272,34 @@ describe('Launch argument tests', () => {
 
     it('setupCommands: Checks order with ignored failure', async () => {
         dc = await TestUtils.createDebugClient();
-        const launchArguments: CudaLaunchRequestArguments = await TestUtils.getLaunchArguments('launchEnvVars/launchEnvVars');
+        const launchArguments: CudaLaunchRequestArguments = await TestUtils.getLaunchArguments(
+            'launchEnvVars/launchEnvVars'
+        );
         launchArguments.stopAtEntry = true;
         launchArguments.setupCommands = [
             { text: 'set $order_var = 1', ignoreFailures: false, description: 'First' },
-            { text: 'invalid-gdb-command', ignoreFailures: true, description: 'Second (ignored fail)' },
-            { text: 'set $order_var = $order_var + 1', ignoreFailures: false, description: 'Third (depends on first)' },
+            {
+                text: 'invalid-gdb-command',
+                ignoreFailures: true,
+                description: 'Second (ignored fail)'
+            },
+            {
+                text: 'set $order_var = $order_var + 1',
+                ignoreFailures: false,
+                description: 'Third (depends on first)'
+            },
             { text: 'set $order_var_2 = 99', ignoreFailures: false, description: 'Fourth' }
         ];
 
         await dc.launchRequest(launchArguments);
         await dc.configurationDoneRequest();
         // Expect stop reason 'breakpoint' due to stopAtEntry
-        const { frameId } = await TestUtils.assertStoppedLocation(dc, 'breakpoint', 'launchEnvVars.cpp', 8);
+        const { frameId } = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            'launchEnvVars.cpp',
+            8
+        );
 
         // Check final value of $order_var (should be 1 + 1 = 2)
         const evalResp1 = await dc.evaluateRequest({ expression: '$order_var', frameId: frameId });
@@ -239,7 +312,10 @@ describe('Launch argument tests', () => {
             })
         );
         // Check final value of $order_var_2
-        const evalResp2 = await dc.evaluateRequest({ expression: '$order_var_2', frameId: frameId });
+        const evalResp2 = await dc.evaluateRequest({
+            expression: '$order_var_2',
+            frameId: frameId
+        });
         expect(evalResp2).toEqual(
             expect.objectContaining({
                 body: expect.objectContaining({
@@ -266,7 +342,9 @@ describe('Launch argument tests', () => {
             const markerPath = path.join(testDir, 'marker.txt');
 
             dc = await TestUtils.createDebugClient();
-            const launchArguments = await TestUtils.getLaunchArguments('launchEnvVars/launchEnvVars'); // Use a simple existing program
+            const launchArguments = await TestUtils.getLaunchArguments(
+                'launchEnvVars/launchEnvVars'
+            ); // Use a simple existing program
 
             try {
                 // 1. Setup: Create directory and wrapper script
@@ -290,7 +368,12 @@ describe('Launch argument tests', () => {
                 // Using initialized event is more robust than a fixed timeout
                 await Promise.race([
                     dc.waitForEvent('initialized'),
-                    new Promise((_resolve, _reject) => setTimeout(() => _reject(new Error('Timeout waiting for initialized event')), 5000)) // Rename promise params
+                    new Promise((_resolve, _reject) =>
+                        setTimeout(
+                            () => _reject(new Error('Timeout waiting for initialized event')),
+                            5000
+                        )
+                    ) // Rename promise params
                 ]);
 
                 // If launch didn't throw and initialized event received, GDB likely started
@@ -318,7 +401,9 @@ describe('Launch argument tests', () => {
             const nonExistentPath = path.join(os.tmpdir(), `non-existent-gdb-${uniqueId}`);
 
             dc = await TestUtils.createDebugClient();
-            const launchArguments = await TestUtils.getLaunchArguments('launchEnvVars/launchEnvVars');
+            const launchArguments = await TestUtils.getLaunchArguments(
+                'launchEnvVars/launchEnvVars'
+            );
             launchArguments.debuggerPath = nonExistentPath;
             launchArguments.program = TestUtils.getTestProgram('launchEnvVars/launchEnvVars'); // Ensure program path is absolute
 
@@ -330,11 +415,18 @@ describe('Launch argument tests', () => {
             const uniqueId = crypto.randomUUID();
             // Calculate repo root relative to the current working directory
             const repoRoot = process.cwd(); // Assuming test runs from repo root
-            const testDir = path.resolve(repoRoot, 'out', 'tests', `debuggerPathNotExec-${uniqueId}`);
+            const testDir = path.resolve(
+                repoRoot,
+                'out',
+                'tests',
+                `debuggerPathNotExec-${uniqueId}`
+            );
             const notExecutablePath = path.join(testDir, `not-executable-${uniqueId}.txt`);
 
             dc = await TestUtils.createDebugClient();
-            const launchArguments = await TestUtils.getLaunchArguments('launchEnvVars/launchEnvVars');
+            const launchArguments = await TestUtils.getLaunchArguments(
+                'launchEnvVars/launchEnvVars'
+            );
 
             try {
                 // 1. Setup: Create directory and empty, non-executable file
@@ -344,7 +436,9 @@ describe('Launch argument tests', () => {
                 // 2. Execution & Verification
                 launchArguments.debuggerPath = notExecutablePath;
                 launchArguments.program = TestUtils.getTestProgram('launchEnvVars/launchEnvVars'); // Ensure program path is absolute
-                await expect(dc.launchRequest(launchArguments)).rejects.toThrow(/Unable to find|access/); // Error message might vary slightly
+                await expect(dc.launchRequest(launchArguments)).rejects.toThrow(
+                    /Unable to find|access/
+                ); // Error message might vary slightly
             } finally {
                 // 3. Cleanup
                 await fs.rm(testDir, { recursive: true, force: true });

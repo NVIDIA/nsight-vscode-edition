@@ -17,7 +17,12 @@ import { EventEmitter } from 'node:events';
 import { CudaGdbSession, CudaGdbBackend } from './cudaGdbSession';
 import { type ClientChannel } from 'ssh2';
 import { validateGdbServerArgs } from './cudaGdbServerConfig';
-import { startGDBServerGeneric, type CudaTargetAttachRequestArguments, type CudaTargetLaunchRequestArguments, type CudaTargetLaunchArguments } from './cudaGdbServerAutostart';
+import {
+    startGDBServerGeneric,
+    type CudaTargetAttachRequestArguments,
+    type CudaTargetLaunchRequestArguments,
+    type CudaTargetLaunchArguments
+} from './cudaGdbServerAutostart';
 
 class CudaGdbServerBackend extends CudaGdbBackend {
     async spawn(args: CudaTargetAttachRequestArguments): Promise<void> {
@@ -31,7 +36,10 @@ export class CudaGdbServerSession extends CudaGdbSession {
     protected gdbserver?: ChildProcess;
     #sshChannel?: ClientChannel;
 
-    protected async setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments): Promise<void> {
+    protected async setBreakPointsRequest(
+        response: DebugProtocol.SetBreakpointsResponse,
+        args: DebugProtocol.SetBreakpointsArguments
+    ): Promise<void> {
         await (this.gdbTargetDebugSession as any).setBreakPointsRequest.call(this, response, args);
     }
 
@@ -61,7 +69,10 @@ export class CudaGdbServerSession extends CudaGdbSession {
      * It is intentional that this function overrides the base class implementation
      */
 
-    protected async launchRequest(response: DebugProtocol.LaunchResponse, args: CudaTargetLaunchRequestArguments): Promise<void> {
+    protected async launchRequest(
+        response: DebugProtocol.LaunchResponse,
+        args: CudaTargetLaunchRequestArguments
+    ): Promise<void> {
         logger.verbose('Executing launch request');
 
         this.initializeLogger(args);
@@ -96,6 +107,10 @@ export class CudaGdbServerSession extends CudaGdbSession {
     }
 
     protected async startGDBServer(args: CudaTargetLaunchRequestArguments): Promise<void> {
+        if (!args.autostart?.mode) {
+            return;
+        }
+
         const validated = validateGdbServerArgs(args, {
             defaultPort: '2345',
             requireRemoteHost: false,
@@ -112,7 +127,12 @@ export class CudaGdbServerSession extends CudaGdbSession {
         // Local autostart: delegate to cdt-gdb-adapter to spawn locally
         if (args.autostart?.mode === 'local') {
             args.target.server = args.target.server ?? 'cuda-gdbserver';
-            args.target.serverParameters = ['--once', `:${args.target.port}`, args.program, ...args.args];
+            args.target.serverParameters = [
+                '--once',
+                `:${args.target.port}`,
+                args.program,
+                ...args.args
+            ];
             await (this.gdbTargetDebugSession as any).startGDBServer.call(this, args);
             return;
         }
@@ -122,15 +142,39 @@ export class CudaGdbServerSession extends CudaGdbSession {
         this.#sshChannel = sshChannel;
     }
 
-    protected attachOrLaunchRequest(response: DebugProtocol.Response, request: 'launch' | 'attach', args: CudaTargetLaunchRequestArguments): Promise<void> {
-        return (this.gdbTargetDebugSession as any).attachOrLaunchRequest.call(this, response, request, args, true);
+    protected async stopGDBServer(): Promise<void> {
+        await (this.gdbTargetDebugSession as any).stopGDBServer.call(this);
     }
 
-    protected async startGDBAndAttachToTarget(response: DebugProtocol.AttachResponse | DebugProtocol.LaunchResponse, args: CudaTargetAttachRequestArguments): Promise<void> {
-        await (this.gdbTargetDebugSession as any).startGDBAndAttachToTarget.call(this, response, args);
+    protected attachOrLaunchRequest(
+        response: DebugProtocol.Response,
+        request: 'launch' | 'attach',
+        args: CudaTargetLaunchRequestArguments
+    ): Promise<void> {
+        return (this.gdbTargetDebugSession as any).attachOrLaunchRequest.call(
+            this,
+            response,
+            request,
+            args,
+            true
+        );
     }
 
-    protected async disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments): Promise<void> {
+    protected async startGDBAndAttachToTarget(
+        response: DebugProtocol.AttachResponse | DebugProtocol.LaunchResponse,
+        args: CudaTargetAttachRequestArguments
+    ): Promise<void> {
+        await (this.gdbTargetDebugSession as any).startGDBAndAttachToTarget.call(
+            this,
+            response,
+            args
+        );
+    }
+
+    protected async disconnectRequest(
+        response: DebugProtocol.DisconnectResponse,
+        args: DebugProtocol.DisconnectArguments
+    ): Promise<void> {
         try {
             if (this.#sshChannel) {
                 logger.verbose('[ssh] Closing SSH channel');
@@ -141,8 +185,14 @@ export class CudaGdbServerSession extends CudaGdbSession {
             // Call parent disconnect (which handles GDB exit and gdbserver cleanup)
             await (this.gdbTargetDebugSession as any).disconnectRequest.call(this, response, args);
         } catch (error) {
-            logger.error(`Error during disconnect: ${error instanceof Error ? error.message : String(error)}`);
-            this.sendErrorResponse(response, 1, error instanceof Error ? error.message : String(error));
+            logger.error(
+                `Error during disconnect: ${error instanceof Error ? error.message : String(error)}`
+            );
+            this.sendErrorResponse(
+                response,
+                1,
+                error instanceof Error ? error.message : String(error)
+            );
         }
     }
 }

@@ -1,3 +1,4 @@
+import { test } from '@jest/globals';
 import { usingWorkspace } from './test-client.mts';
 
 describe('Stepping', () => {
@@ -53,7 +54,9 @@ describe('Stepping', () => {
                 const src = ws.file('default/stepping.cu');
                 const bp = await src.createBreakpoint({ line: '📍callingKernelStart' });
 
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-calling'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-calling']
+                });
                 await bp.waitForBreakCount(1);
 
                 const lines: number[] = [];
@@ -74,7 +77,9 @@ describe('Stepping', () => {
                 const src = ws.file('default/stepping.cu');
                 const startBp = await src.createBreakpoint({ line: '📍stepOverBeforeCall' });
 
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-stepover'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-stepover']
+                });
                 await startBp.waitForBreakCount(1);
 
                 const initialLine = (await session.lastStopStackFrame()).location.lineNumber;
@@ -91,7 +96,9 @@ describe('Stepping', () => {
                 const src = ws.file('default/stepping.cu');
                 const startBp = await src.createBreakpoint({ line: '📍stepOutMiddle' });
 
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-stepout'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-stepout']
+                });
                 await startBp.waitForBreakCount(1);
 
                 await session.stepOutAndExpect();
@@ -133,7 +140,9 @@ describe('Stepping', () => {
                 await session.stepInAndExpect();
 
                 const frame = await session.lastStopStackFrame();
-                expect(['addNums', 'cudaComputeHashInner', 'cudaComputeHash']).toContain(frame.name);
+                expect(['addNums', 'cudaComputeHashInner', 'cudaComputeHash']).toContain(
+                    frame.name
+                );
             }));
 
         test('Breakpoint hit while stepping over', () =>
@@ -142,7 +151,9 @@ describe('Stepping', () => {
                 const innerBp = await src.createBreakpoint({ line: '📍helperBreakpoint' });
                 const startBp = await src.createBreakpoint({ line: '📍stepOverBeforeCall' });
 
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-stepover'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-stepover']
+                });
                 await startBp.waitForBreakCount(1);
 
                 await session.stepOver();
@@ -161,7 +172,9 @@ describe('Stepping', () => {
                 const src = ws.file('default/stepping.cu');
                 const bp = await src.createBreakpoint({ line: '📍callingKernelAssign' });
 
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-calling'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-calling']
+                });
                 await bp.waitForBreakCount(1);
 
                 const initialLine = (await session.lastStopStackFrame()).location.lineNumber;
@@ -179,7 +192,9 @@ describe('Stepping', () => {
                 const callerBp = await src.createBreakpoint({ line: '📍stepOutCallerAfterCall' });
                 const startBp = await src.createBreakpoint({ line: '📍stepOutMiddle' });
 
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-stepout'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-stepout']
+                });
                 await startBp.waitForBreakCount(1);
 
                 await session.stepOut();
@@ -199,7 +214,9 @@ describe('Stepping', () => {
                 const src = ws.file('default/stepping.cu');
                 const bp = await src.createBreakpoint({ line: '📍stepOutEnd' });
 
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-stepout'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-stepout']
+                });
                 await bp.waitForBreakCount(1);
 
                 await session.stepInAndExpect();
@@ -213,7 +230,9 @@ describe('Stepping', () => {
                 const src = ws.file('default/stepping.cu');
                 const bp = await src.createBreakpoint({ line: '📍helperBreakpoint' });
 
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-stepover'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-stepover']
+                });
                 await bp.waitForBreakCount(1);
 
                 await session.stepOutAndExpect();
@@ -223,6 +242,42 @@ describe('Stepping', () => {
             }));
     });
 
+    // ===== INSTRUCTION STEPPING =====
+    describe('Instruction Stepping', () => {
+        test.each([
+            ['Step over', 'stepOverAndExpect'],
+            ['Step into', 'stepInAndExpect']
+        ] as const)('%s advances one GPU instruction at a time', (_, step) =>
+            usingWorkspace(async (ws) => {
+                const src = ws.file('default/stepping.cu');
+                const bp = await src.createBreakpoint({ line: '📍callingKernelStart' });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-calling']
+                });
+                await bp.waitForBreakCount(1);
+
+                const initial = await session.lastStopStackFrame();
+                const {
+                    body: { instructions }
+                } = await session.dap.send('disassemble', {
+                    memoryReference: initial.dap.instructionPointerReference!,
+                    instructionCount: 4
+                });
+                // The kernel's threadIdx.x assignment has several straight-line instructions.
+                expect(instructions).toHaveLength(4);
+                expect(instructions[1].line).toBe(initial.dap.line);
+                for (const instruction of instructions.slice(1)) {
+                    await session[step]('instruction');
+
+                    const frame = await session.lastStopStackFrame();
+                    expect(BigInt(frame.dap.instructionPointerReference!)).toBe(
+                        BigInt(instruction.address)
+                    );
+                }
+            })
+        );
+    });
+
     // ===== RECURSIVE STEPPING =====
     describe('Recursive Stepping', () => {
         test('Step into self-recursive device function calls', () =>
@@ -230,7 +285,9 @@ describe('Stepping', () => {
                 const src = ws.file('default/stepping.cu');
                 const kernelBp = await src.createBreakpoint({ line: '📍selfRecKernelBeforeCall' });
                 const deviceBp = await src.createBreakpoint({ line: '📍selfRecEntry' });
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-recursive-self'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-recursive-self']
+                });
                 await kernelBp.waitForBreakCount(1);
 
                 const frame = await session.lastStopStackFrame();
@@ -245,7 +302,9 @@ describe('Stepping', () => {
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/stepping.cu');
                 const bp = await src.createBreakpoint({ line: '📍selfRecKernelBeforeCall' });
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-recursive-self'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-recursive-self']
+                });
                 await bp.waitForBreakCount(1);
 
                 const initialFrame = await session.lastStopStackFrame();
@@ -262,7 +321,9 @@ describe('Stepping', () => {
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/stepping.cu');
                 const bp = await src.createBreakpoint({ line: '📍selfRecKernelBeforeCall' });
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-recursive-self'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-recursive-self']
+                });
                 await bp.waitForBreakCount(1);
 
                 const initialFrame = await session.lastStopStackFrame();
@@ -277,7 +338,10 @@ describe('Stepping', () => {
         test('Hitcount breakpoint on self-recursive device function', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/stepping.cu');
-                const bp = await src.createBreakpoint({ line: '📍selfRecEntry', hitCondition: '2' });
+                const bp = await src.createBreakpoint({
+                    line: '📍selfRecEntry',
+                    hitCondition: '2'
+                });
                 await ws.startDebugging('default:launch', { args: ['stepping-recursive-self'] });
 
                 await bp.waitForBreakCount(1);
@@ -287,9 +351,13 @@ describe('Stepping', () => {
         test('Step into mutually-recursive device function calls', () =>
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/stepping.cu');
-                const kernelBp = await src.createBreakpoint({ line: '📍mutualRecKernelBeforeCall' });
+                const kernelBp = await src.createBreakpoint({
+                    line: '📍mutualRecKernelBeforeCall'
+                });
                 const deviceBp = await src.createBreakpoint({ line: '📍isEvenEntry' });
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-recursive-mutual'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-recursive-mutual']
+                });
                 await kernelBp.waitForBreakCount(1);
 
                 const frame = await session.lastStopStackFrame();
@@ -304,7 +372,9 @@ describe('Stepping', () => {
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/stepping.cu');
                 const bp = await src.createBreakpoint({ line: '📍mutualRecKernelBeforeCall' });
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-recursive-mutual'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-recursive-mutual']
+                });
                 await bp.waitForBreakCount(1);
 
                 const initialFrame = await session.lastStopStackFrame();
@@ -321,7 +391,9 @@ describe('Stepping', () => {
             usingWorkspace(async (ws) => {
                 const src = ws.file('default/stepping.cu');
                 const bp = await src.createBreakpoint({ line: '📍mutualRecKernelBeforeCall' });
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-recursive-mutual'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-recursive-mutual']
+                });
                 await bp.waitForBreakCount(1);
 
                 const initialFrame = await session.lastStopStackFrame();
@@ -348,7 +420,9 @@ describe('Stepping', () => {
                 const src = ws.file('default/stepping.cu');
                 const evenBp = await src.createBreakpoint({ line: '📍isEvenEntry' });
                 const oddBp = await src.createBreakpoint({ line: '📍isOddEntry' });
-                const session = await ws.startDebugging('default:launch', { args: ['stepping-recursive-mutual'] });
+                const session = await ws.startDebugging('default:launch', {
+                    args: ['stepping-recursive-mutual']
+                });
 
                 await evenBp.waitForBreakCount(1);
                 expect(evenBp.breakCount).toBe(1);

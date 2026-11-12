@@ -12,7 +12,11 @@
 import { build } from 'esbuild';
 
 await build({
-    entryPoints: ['test/extensionHost/runTest.mts', 'test/extensionHost/suite/index.mts', 'test/extensionHost/suite/languageSupport.smoke.mts'],
+    entryPoints: [
+        'test/extensionHost/runTest.mts',
+        'test/extensionHost/suite/index.mts',
+        'test/extensionHost/suite/languageSupport.smoke.mts'
+    ],
     outbase: 'test/extensionHost',
     outdir: 'out/extensionHost',
     bundle: false,

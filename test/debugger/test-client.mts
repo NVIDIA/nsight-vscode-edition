@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { type Readable, type Writable, Transform, Duplex, duplexPair } from 'node:stream';
 import { CudaGdbSession as DapServer } from '../../src/debugger/cudaGdbSession.ts';
 import { ProtocolClient } from '@vscode/debugadapter-testsupport/lib/protocolClient.js';
@@ -48,9 +49,7 @@ interface CudaGdbLaunchDebugConfig extends CudaGdbCommonDebugConfig {
 
 interface CudaGdbAttachDebugConfig extends CudaGdbCommonDebugConfig {
     request: 'attach';
-    processId: string;
-    port: number;
-    address: string;
+    processId?: string | number;
 }
 
 type CudaGdbDebugConfig = CudaGdbLaunchDebugConfig | CudaGdbAttachDebugConfig;
@@ -67,12 +66,20 @@ interface LineBreakpointOptions {
     isEnabled?: boolean;
     condition?: string;
     hitCondition?: string;
+    logMessage?: string;
 }
 
-export function usingWorkspace(folderPath: string, callback: (workspace: Workspace) => Promise<void>): Promise<void>;
+export function usingWorkspace(
+    folderPath: string,
+    callback: (workspace: Workspace) => Promise<void>
+): Promise<void>;
 export function usingWorkspace(callback: (workspace: Workspace) => Promise<void>): Promise<void>;
 
-export async function usingWorkspace(...args: [callback: (workspace: Workspace) => Promise<void>] | [folderPath: string, callback: (workspace: Workspace) => Promise<void>]): Promise<void> {
+export async function usingWorkspace(
+    ...args:
+        | [callback: (workspace: Workspace) => Promise<void>]
+        | [folderPath: string, callback: (workspace: Workspace) => Promise<void>]
+): Promise<void> {
     const [folderPath, callback] = args.length === 2 ? args : ['projects', args[0]];
     const workspace = new Workspace(folderPath);
     try {
@@ -99,6 +106,8 @@ export class Workspace extends EventEmitter<WorkspaceEvents> implements AsyncDis
 
     #debugSessions: DebugSession[] = [];
 
+    #attachTargets: AttachTarget[] = [];
+
     constructor(folderPath: string) {
         super({ captureRejections: true });
         const workspacesRoot = path.resolve(import.meta.dirname, '..');
@@ -124,6 +133,11 @@ export class Workspace extends EventEmitter<WorkspaceEvents> implements AsyncDis
         await waitForExpect(() => {
             expect(this.#debugSessions).toBeEmpty();
         });
+        // Debug sessions are disposed first so that debuggees are not killed from under them.
+        for (const target of this.#attachTargets) {
+            await target.dispose();
+        }
+        this.#attachTargets = [];
     }
 
     get breakpoints(): Breakpoint[] {
@@ -157,6 +171,11 @@ export class Workspace extends EventEmitter<WorkspaceEvents> implements AsyncDis
         };
         if (typeof value === 'string') {
             return value.replaceAll(/\$\{(.*?)\}/g, (_, name) => {
+                // VSCode resolves ${command:...} by running the command interactively, e.g. to show
+                // the process picker for attach. Tests must override the properties that use them.
+                if (name.startsWith('command:')) {
+                    return '';
+                }
                 expect(Object.keys(variables)).toContain(name);
                 return variables[name as keyof typeof variables]();
             }) as T;
@@ -210,31 +229,82 @@ export class Workspace extends EventEmitter<WorkspaceEvents> implements AsyncDis
         return resolved;
     }
 
-    async createDebugSession(config: string | CudaGdbDebugConfig, overrides?: Partial<CudaGdbDebugConfig>): Promise<DebugSession> {
-        const resolvedConfig: CudaGdbDebugConfig = typeof config === 'string' ? await this.getDebugConfig(config) : config;
+    async createDebugSession(
+        config: string | CudaGdbDebugConfig,
+        overrides?: Partial<CudaGdbDebugConfig>
+    ): Promise<DebugSession> {
+        const resolvedConfig: CudaGdbDebugConfig =
+            typeof config === 'string' ? await this.getDebugConfig(config) : config;
 
         if (overrides) {
-            return new DebugSession(this, { ...resolvedConfig, ...overrides } as CudaGdbDebugConfig);
+            return new DebugSession(this, {
+                ...resolvedConfig,
+                ...overrides
+            } as CudaGdbDebugConfig);
         }
 
         return new DebugSession(this, resolvedConfig);
     }
 
-    async startDebugging(config: string | CudaGdbDebugConfig, overrides?: Partial<CudaGdbDebugConfig>): Promise<DebugSession> {
+    async startDebugging(
+        config: string | CudaGdbDebugConfig,
+        overrides?: Partial<CudaGdbDebugConfig>
+    ): Promise<DebugSession> {
         const session = await this.createDebugSession(config, overrides);
         await session.startDebugging();
         await session.configurationDone();
         return session;
     }
 
-    async createBreakpoint(filePath: string, line: number, isEnabled = true, condition?: string, hitCondition?: string): Promise<LineBreakpoint> {
-        const bp = new LineBreakpoint(this, path.resolve(this.path, filePath), line, isEnabled, condition, hitCondition);
+    /**
+     * Starts debugging with the given configuration, expecting the launch or attach request to be
+     * rejected, and returns the error message from the failed response.
+     */
+    async expectDebuggingToFail(
+        config: string | CudaGdbDebugConfig,
+        overrides?: Partial<CudaGdbDebugConfig>
+    ): Promise<string> {
+        const session = await this.createDebugSession(config, overrides);
+        return await session.expectStartDebuggingToFail();
+    }
+
+    /**
+     * Starts the test program outside of the debug adapter and waits until it is ready for a
+     * debugger to attach to it. The process is killed when the workspace is disposed.
+     */
+    async startProcessWaitingForAttach(): Promise<AttachTarget> {
+        const program = path.join(this.path, 'build/default/default');
+        const target = new AttachTarget(program, ['attach'], this.path);
+        this.#attachTargets.push(target);
+        await target.waitUntilReadyForAttach();
+        return target;
+    }
+
+    async createBreakpoint(
+        filePath: string,
+        line: number,
+        isEnabled = true,
+        condition?: string,
+        hitCondition?: string,
+        logMessage?: string
+    ): Promise<LineBreakpoint> {
+        const bp = new LineBreakpoint(
+            this,
+            path.resolve(this.path, filePath),
+            line,
+            isEnabled,
+            condition,
+            hitCondition,
+            logMessage
+        );
         this.#breakpoints.push(bp);
         await this.reapplyBreakpoints(filePath);
         return bp;
     }
 
-    async createFunctionBreakpoint(options: FunctionBreakpointOptions): Promise<FunctionBreakpoint> {
+    async createFunctionBreakpoint(
+        options: FunctionBreakpointOptions
+    ): Promise<FunctionBreakpoint> {
         const { name, isEnabled = true, condition, hitCondition } = options;
         const bp = new FunctionBreakpoint(this, name, isEnabled, condition, hitCondition);
         this.#breakpoints.push(bp);
@@ -303,14 +373,23 @@ class WorkspaceFile {
 
     async createBreakpoint(options: LineBreakpointOptions): Promise<LineBreakpoint> {
         let { line } = options;
-        const { isEnabled = true, condition, hitCondition } = options;
+        const { isEnabled = true, condition, hitCondition, logMessage } = options;
         if (typeof line === 'string') {
             line = await this.lineNumber(line);
         }
-        return await this.workspace.createBreakpoint(this.path, line, isEnabled, condition, hitCondition);
+        return await this.workspace.createBreakpoint(
+            this.path,
+            line,
+            isEnabled,
+            condition,
+            hitCondition,
+            logMessage
+        );
     }
 
-    async createFunctionBreakpoint(options: FunctionBreakpointOptions): Promise<FunctionBreakpoint> {
+    async createFunctionBreakpoint(
+        options: FunctionBreakpointOptions
+    ): Promise<FunctionBreakpoint> {
         return await this.workspace.createFunctionBreakpoint(options);
     }
 
@@ -322,6 +401,54 @@ class WorkspaceFile {
     async startDebugging(baseConfigName = 'default:launch'): Promise<DebugSession> {
         const fileName = path.basename(this.path, path.extname(this.path));
         return await this.workspace.startDebugging(baseConfigName, { args: [fileName] });
+    }
+}
+
+/// Matches the message that the attach test program prints once it is ready to be attached to.
+const attachReadyPattern = /Waiting for debugger attach\. PID: (\d+)/;
+
+/**
+ * A test program running outside of the debug adapter, so that a debug session can attach to it.
+ */
+class AttachTarget implements AsyncDisposable {
+    readonly #process: ChildProcess;
+
+    #output: string = '';
+
+    #pid?: number;
+
+    constructor(program: string, args: string[], cwd: string) {
+        this.#process = spawn(program, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+        for (const stream of [this.#process.stdout!, this.#process.stderr!]) {
+            stream.setEncoding('utf8');
+            stream.on('data', (chunk: string) => {
+                this.#output += chunk;
+            });
+        }
+    }
+
+    /// The process ID that the program reported for itself.
+    get pid(): number {
+        expect(this.#pid).toBeDefined();
+        return this.#pid!;
+    }
+
+    async waitUntilReadyForAttach(): Promise<void> {
+        await waitForExpect(() => {
+            expect(this.#output).toMatch(attachReadyPattern);
+        });
+        this.#pid = Number(attachReadyPattern.exec(this.#output)![1]);
+    }
+
+    async [Symbol.asyncDispose](): Promise<void> {
+        await this.dispose();
+    }
+
+    async dispose(): Promise<void> {
+        this.#process.kill('SIGKILL');
+        await waitForExpect(() => {
+            expect(this.#process.exitCode ?? this.#process.signalCode).not.toBeNull();
+        });
     }
 }
 
@@ -384,6 +511,18 @@ class Breakpoint {
         );
     }
 
+    expectToBePending(): void {
+        expect(this.#dap).toEqual(
+            expect.objectContaining({
+                id: expect.any(Number),
+                verified: false
+            })
+        );
+        // A failed insertion is also reported as verified: false, but with a message
+        // and no id, so require the breakpoint to have actually been created.
+        expect(this.#dap).not.toHaveProperty('message');
+    }
+
     expectBreakCount(count: number): void {
         expect(this.breakCount).toEqual(count);
     }
@@ -398,13 +537,23 @@ class LineBreakpoint extends Breakpoint {
     readonly line: number;
     readonly condition?: string;
     readonly hitCondition?: string;
+    readonly logMessage?: string;
 
-    constructor(workspace: Workspace, filePath: string, line: number, isEnabled = true, condition?: string, hitCondition?: string) {
+    constructor(
+        workspace: Workspace,
+        filePath: string,
+        line: number,
+        isEnabled = true,
+        condition?: string,
+        hitCondition?: string,
+        logMessage?: string
+    ) {
         super(workspace, isEnabled);
         this.path = filePath;
         this.line = line;
         this.condition = condition;
         this.hitCondition = hitCondition;
+        this.logMessage = logMessage;
     }
 }
 
@@ -413,7 +562,13 @@ class FunctionBreakpoint extends Breakpoint {
     readonly condition?: string;
     readonly hitCondition?: string;
 
-    constructor(workspace: Workspace, name: string, isEnabled = true, condition?: string, hitCondition?: string) {
+    constructor(
+        workspace: Workspace,
+        name: string,
+        isEnabled = true,
+        condition?: string,
+        hitCondition?: string
+    ) {
         super(workspace, isEnabled);
         this.name = name;
         this.condition = condition;
@@ -431,7 +586,7 @@ interface DebugSessionEvents {
     disposed: [];
 }
 
-class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisposable {
+export class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisposable {
     readonly workspace: Workspace;
     readonly config: CudaGdbDebugConfig;
     readonly dap: DapClient;
@@ -462,7 +617,9 @@ class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisp
         this.workspace = workspace;
         this.dap = new DapClient();
 
-        this.dap.on('breakpoint', (event: DebugProtocol.BreakpointEvent) => this.#onDapBreakpoint(event));
+        this.dap.on('breakpoint', (event: DebugProtocol.BreakpointEvent) =>
+            this.#onDapBreakpoint(event)
+        );
         this.dap.on('stopped', (event: DebugProtocol.StoppedEvent) => this.#onDapStopped(event));
 
         this.workspace.emit('debugSessionCreated', this);
@@ -491,7 +648,10 @@ class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisp
 
     #onDapBreakpoint(event: DebugProtocol.BreakpointEvent): void {
         const { reason, breakpoint: dapBreakpoint } = event.body;
-        if (reason === 'changed' && dapBreakpoint.id !== undefined && dapBreakpoint.id !== null) {
+        if (reason === 'changed') {
+            // The adapter must always say which breakpoint changed; an event without an id
+            // is silently dropped by VS Code (this used to happen for multi-location breakpoints).
+            expect(dapBreakpoint.id).toEqual(expect.any(Number));
             const bp = this.workspace.breakpoints.find((b) => b.dap?.id === dapBreakpoint.id);
             expect(bp).toBeDefined();
             bp!.dap = event.body.breakpoint;
@@ -529,10 +689,19 @@ class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisp
         const { location } = callStack[0];
 
         // For line breakpoints, check file and line
-        const lineBreakpoints = this.workspace.breakpoints.filter((bp) => bp instanceof LineBreakpoint && bp.path === location.fileName && bp.dap?.line === location.lineNumber);
+        const lineBreakpoints = this.workspace.breakpoints.filter(
+            (bp) =>
+                bp instanceof LineBreakpoint &&
+                bp.path === location.fileName &&
+                bp.dap?.line === location.lineNumber
+        );
 
         // For function breakpoints, check if the function name matches
-        const functionBreakpoints = this.workspace.breakpoints.filter((bp) => bp instanceof FunctionBreakpoint && callStack.some((frame) => frame.name === bp.name));
+        const functionBreakpoints = this.workspace.breakpoints.filter(
+            (bp) =>
+                bp instanceof FunctionBreakpoint &&
+                callStack.some((frame) => frame.name === bp.name)
+        );
 
         if (lineBreakpoints.length === 0 && functionBreakpoints.length === 0) {
             // No matching user breakpoints — likely an internal stop (e.g. break_on_launch).
@@ -547,7 +716,9 @@ class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisp
     async start(): Promise<void> {
         expect(this.#server).toBeUndefined();
 
-        const logFile = currentLogPath ? path.resolve(currentLogPath, `client.${this.#id}.log`) : undefined;
+        const logFile = currentLogPath
+            ? path.resolve(currentLogPath, `client.${this.#id}.log`)
+            : undefined;
 
         const writeLog = (data: string | Uint8Array): void => {
             if (logFile) {
@@ -613,6 +784,7 @@ class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisp
                 supportsLogPoints: true,
                 supportsFunctionBreakpoints: true,
                 supportsDisassembleRequest: true,
+                supportsSteppingGranularity: true,
                 supportsReadMemoryRequest: true,
                 supportsWriteMemoryRequest: true
             })
@@ -625,10 +797,38 @@ class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisp
             await this.initialize();
         }
         await this.expectEvent('initialized', async () => {
-            this.dap.send(this.config.request, this.config);
+            await this.dap.send(this.config.request, this.config);
         });
         await this.reapplyBreakpoints();
         await this.reapplyFunctionBreakpoints();
+    }
+
+    /**
+     * Sends the launch or attach request from the configuration, expecting it to be rejected, and
+     * returns the error message from the failed response.
+     */
+    async expectStartDebuggingToFail(): Promise<string> {
+        if (!this.#isInitialized) {
+            await this.initialize();
+        }
+        const error = await this.dap.send(this.config.request, this.config).then(
+            () => undefined,
+            (error_: unknown) => error_
+        );
+        expect(error).toBeInstanceOf(Error);
+        return (error as Error).message;
+    }
+
+    /**
+     * Waits until `#lastStop` has the given reason. Prefer this over `expectEvent('stopped', …)` when
+     * the stop may already have been recorded (e.g. the post-attach `entry` stop after
+     * `configurationDone`).
+     */
+    async waitForStop(reason: string): Promise<DebugProtocol.StoppedEvent['body']> {
+        await waitForExpect(() => {
+            expect(this.#lastStop?.reason).toEqual(reason);
+        });
+        return this.lastStop;
     }
 
     get lastStop(): DebugProtocol.StoppedEvent['body'] {
@@ -644,12 +844,12 @@ class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisp
         await this.dap.send('continue', { threadId: this.lastStop.threadId });
     }
 
-    async stepIn(): Promise<void> {
-        await this.dap.send('stepIn', { threadId: this.lastStop.threadId });
+    async stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+        await this.dap.send('stepIn', { threadId: this.lastStop.threadId, granularity });
     }
 
-    async stepOver(): Promise<void> {
-        await this.dap.send('next', { threadId: this.lastStop.threadId });
+    async stepOver(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+        await this.dap.send('next', { threadId: this.lastStop.threadId, granularity });
     }
 
     async stepOut(): Promise<void> {
@@ -663,15 +863,19 @@ class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisp
         }
     }
 
-    async stepInAndExpect(): Promise<DebugProtocol.StoppedEvent['body']> {
+    async stepInAndExpect(
+        granularity?: DebugProtocol.SteppingGranularity
+    ): Promise<DebugProtocol.StoppedEvent['body']> {
         return await this.expectStepEvent(async () => {
-            await this.stepIn();
+            await this.stepIn(granularity);
         });
     }
 
-    async stepOverAndExpect(): Promise<DebugProtocol.StoppedEvent['body']> {
+    async stepOverAndExpect(
+        granularity?: DebugProtocol.SteppingGranularity
+    ): Promise<DebugProtocol.StoppedEvent['body']> {
         return await this.expectStepEvent(async () => {
-            await this.stepOver();
+            await this.stepOver(granularity);
         });
     }
 
@@ -683,7 +887,9 @@ class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisp
 
     async reapplyBreakpoints(filePath?: string): Promise<void> {
         if (filePath === undefined) {
-            const lineBreakpoints = this.workspace.breakpoints.filter((bp): bp is LineBreakpoint => bp instanceof LineBreakpoint);
+            const lineBreakpoints = this.workspace.breakpoints.filter(
+                (bp): bp is LineBreakpoint => bp instanceof LineBreakpoint
+            );
             const filePaths = new Set(lineBreakpoints.map((bp) => bp.path));
             for (const filePath of filePaths) {
                 await this.reapplyBreakpoints(filePath);
@@ -691,15 +897,19 @@ class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisp
             return;
         }
 
-        const breakpoints = this.workspace.breakpoints.filter((bp): bp is LineBreakpoint => bp instanceof LineBreakpoint && bp.isEnabled && bp.path === filePath);
+        const breakpoints = this.workspace.breakpoints.filter(
+            (bp): bp is LineBreakpoint =>
+                bp instanceof LineBreakpoint && bp.isEnabled && bp.path === filePath
+        );
         const {
             body: { breakpoints: dapBreakpoints }
         } = await this.dap.send('setBreakpoints', {
             source: { path: filePath },
-            breakpoints: breakpoints.map(({ line, condition, hitCondition }) => {
+            breakpoints: breakpoints.map(({ line, condition, hitCondition, logMessage }) => {
                 const bp: any = { line };
                 if (condition) bp.condition = condition;
                 if (hitCondition) bp.hitCondition = hitCondition;
+                if (logMessage) bp.logMessage = logMessage;
                 return bp;
             })
         });
@@ -710,7 +920,9 @@ class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisp
     }
 
     async reapplyFunctionBreakpoints(): Promise<void> {
-        const breakpoints = this.workspace.breakpoints.filter((bp): bp is FunctionBreakpoint => bp instanceof FunctionBreakpoint && bp.isEnabled);
+        const breakpoints = this.workspace.breakpoints.filter(
+            (bp): bp is FunctionBreakpoint => bp instanceof FunctionBreakpoint && bp.isEnabled
+        );
         const {
             body: { breakpoints: dapBreakpoints }
         } = await this.dap.send('setFunctionBreakpoints', {
@@ -728,18 +940,33 @@ class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisp
     }
 
     async expectEvent(event: string, block: () => Promise<void>): Promise<DebugProtocol.Event> {
-        const promise = new Promise<DebugProtocol.Event>((resolve) => {
-            this.dap.on(event, (e: DebugProtocol.Event) => {
-                resolve(e);
-            });
+        let listener: (e: DebugProtocol.Event) => void;
+        const eventPromise = new Promise<DebugProtocol.Event>((resolve) => {
+            listener = (e: DebugProtocol.Event) => resolve(e);
+            this.dap.on(event, listener);
         });
-        await block();
-        expect(promise).toResolve();
-        return promise;
+
+        try {
+            // Race a rejection from the block against the event, so a failed request (e.g. a
+            // rejected launch/attach) fails fast instead of leaving the event wait hanging until
+            // the jest timeout. A successful completion of the block is otherwise ignored, since
+            // some blocks (e.g. sending a launch/attach request) don't resolve until well after
+            // the expected event fires.
+            const blockFailure = block().then(() => new Promise<never>(() => {}));
+            return await Promise.race([eventPromise, blockFailure]);
+        } finally {
+            this.dap.removeListener(event, listener!);
+        }
     }
 
-    async expectBreakpointHit(breakpoint: Breakpoint, callback: () => Promise<void>): Promise<DebugProtocol.StoppedEvent['body']> {
-        const { body } = (await this.expectEvent('stopped', callback)) as DebugProtocol.StoppedEvent;
+    async expectBreakpointHit(
+        breakpoint: Breakpoint,
+        callback: () => Promise<void>
+    ): Promise<DebugProtocol.StoppedEvent['body']> {
+        const { body } = (await this.expectEvent(
+            'stopped',
+            callback
+        )) as DebugProtocol.StoppedEvent;
 
         expect(body).toEqual(
             expect.objectContaining({
@@ -775,8 +1002,13 @@ class DebugSession extends EventEmitter<DebugSessionEvents> implements AsyncDisp
         return body;
     }
 
-    async expectStepEvent(callback: () => Promise<void>): Promise<DebugProtocol.StoppedEvent['body']> {
-        const { body } = (await this.expectEvent('stopped', callback)) as DebugProtocol.StoppedEvent;
+    async expectStepEvent(
+        callback: () => Promise<void>
+    ): Promise<DebugProtocol.StoppedEvent['body']> {
+        const { body } = (await this.expectEvent(
+            'stopped',
+            callback
+        )) as DebugProtocol.StoppedEvent;
 
         expect(body).toEqual(
             expect.objectContaining({
@@ -864,7 +1096,7 @@ class Thread {
     }
 }
 
-class StackFrame {
+export class StackFrame {
     readonly thread: Thread;
     readonly dap: DebugProtocol.StackFrame;
     #scopes?: { [name: string]: Scope };
@@ -886,7 +1118,15 @@ class StackFrame {
         return { fileName: this.dap.source?.path, lineNumber: this.dap.line };
     }
 
-    async expectLocation(expected: { name?: string; file: string | WorkspaceFile; line?: number | number[] | string | string[] } | { name?: string; file?: string | WorkspaceFile; line?: number | number[] }): Promise<void> {
+    async expectLocation(
+        expected:
+            | {
+                  name?: string;
+                  file: string | WorkspaceFile;
+                  line?: number | number[] | string | string[];
+              }
+            | { name?: string; file?: string | WorkspaceFile; line?: number | number[] }
+    ): Promise<void> {
         const { fileName, lineNumber } = this.location;
 
         const expectedName = expected.name;
@@ -894,7 +1134,10 @@ class StackFrame {
             expect(this.name).toEqual(expectedName);
         }
 
-        const expectedFile = typeof expected.file === 'string' ? this.thread.session.workspace.file(expected.file) : expected.file;
+        const expectedFile =
+            typeof expected.file === 'string'
+                ? this.thread.session.workspace.file(expected.file)
+                : expected.file;
         if (expectedFile !== undefined) {
             expect(fileName).toEqual(expectedFile.path);
         }
@@ -912,6 +1155,22 @@ class StackFrame {
             );
             expect(lineNumber).toBeOneOf(expectedLineNumbers);
         }
+    }
+
+    /**
+     * Evaluates an expression against this frame the way the Watch panel ('watch') or a
+     * hover data tip ('hover') would.
+     */
+    async evaluate(
+        expression: string,
+        context: 'watch' | 'hover' | 'repl' = 'watch'
+    ): Promise<DebugProtocol.EvaluateResponse['body']> {
+        const response = await this.session.dap.send('evaluate', {
+            expression,
+            frameId: this.dap.id,
+            context
+        });
+        return response.body;
     }
 
     async scopes(): Promise<{ [name: string]: Scope }> {

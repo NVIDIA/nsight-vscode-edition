@@ -1,5 +1,5 @@
 {
-    "assert-plus" : {
+    "assert-plus": {
         "licenseFile": "https://raw.githubusercontent.com/joyent/node-assert-plus/master/LICENSE"
     },
     "uri-js": {

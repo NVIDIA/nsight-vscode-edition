@@ -34,11 +34,22 @@ type CompileCommand = {
 };
 
 // Setup entry point
-export async function resolveCudaEnvironment(compileCommandsPath?: string, configuredCudaGpuArch?: string): Promise<CudaEnvironment | undefined> {
-    return await resolveCudaEnvironmentFromNvccPaths(await getNvccCandidates(compileCommandsPath), compileCommandsPath, configuredCudaGpuArch);
+export async function resolveCudaEnvironment(
+    compileCommandsPath?: string,
+    configuredCudaGpuArch?: string
+): Promise<CudaEnvironment | undefined> {
+    return await resolveCudaEnvironmentFromNvccPaths(
+        await getNvccCandidates(compileCommandsPath),
+        compileCommandsPath,
+        configuredCudaGpuArch
+    );
 }
 
-export async function resolveCudaEnvironmentFromNvccPaths(nvccPaths: string[], compileCommandsPath?: string, configuredCudaGpuArch?: string): Promise<CudaEnvironment | undefined> {
+export async function resolveCudaEnvironmentFromNvccPaths(
+    nvccPaths: string[],
+    compileCommandsPath?: string,
+    configuredCudaGpuArch?: string
+): Promise<CudaEnvironment | undefined> {
     const cudaGpuArch = await resolveCudaGpuArch(compileCommandsPath, configuredCudaGpuArch);
 
     for (const nvccPath of nvccPaths) {
@@ -46,13 +57,19 @@ export async function resolveCudaEnvironmentFromNvccPaths(nvccPaths: string[], c
             continue;
         }
 
-        const candidateEnvironment = await buildCudaEnvironment(path.dirname(path.dirname(nvccPath)), cudaGpuArch);
+        const candidateEnvironment = await buildCudaEnvironment(
+            path.dirname(path.dirname(nvccPath)),
+            cudaGpuArch
+        );
         if (candidateEnvironment) {
             return candidateEnvironment;
         }
 
         const resolvedNvccPath = await fs.realpath(nvccPath);
-        const resolvedEnvironment = await buildCudaEnvironment(path.dirname(path.dirname(resolvedNvccPath)), cudaGpuArch);
+        const resolvedEnvironment = await buildCudaEnvironment(
+            path.dirname(path.dirname(resolvedNvccPath)),
+            cudaGpuArch
+        );
         if (resolvedEnvironment) {
             return resolvedEnvironment;
         }
@@ -62,13 +79,20 @@ export async function resolveCudaEnvironmentFromNvccPaths(nvccPaths: string[], c
 }
 
 // GPU architecture resolution.
-async function resolveCudaGpuArch(compileCommandsPath?: string, configuredCudaGpuArch?: string): Promise<string> {
-    const configuredArch = configuredCudaGpuArch ? normalizeCudaGpuArch(configuredCudaGpuArch) : undefined;
+async function resolveCudaGpuArch(
+    compileCommandsPath?: string,
+    configuredCudaGpuArch?: string
+): Promise<string> {
+    const configuredArch = configuredCudaGpuArch
+        ? normalizeCudaGpuArch(configuredCudaGpuArch)
+        : undefined;
     if (configuredArch) {
         return configuredArch;
     }
 
-    const compileCommandsArch = compileCommandsPath ? await readGpuArchFromCompileCommands(compileCommandsPath) : undefined;
+    const compileCommandsArch = compileCommandsPath
+        ? await readGpuArchFromCompileCommands(compileCommandsPath)
+        : undefined;
     return compileCommandsArch ?? fallbackCudaGpuArch;
 }
 
@@ -95,16 +119,23 @@ export function extractCudaGpuArch(command: string): string | undefined {
 
 // nvcc discovery.
 async function getNvccCandidates(compileCommandsPath?: string): Promise<string[]> {
-    const compileCommandsNvccPaths = compileCommandsPath ? await readNvccPathsFromCompileCommands(compileCommandsPath) : [];
+    const compileCommandsNvccPaths = compileCommandsPath
+        ? await readNvccPathsFromCompileCommands(compileCommandsPath)
+        : [];
     const systemNvccPaths = await getSystemNvccCandidates();
     return [...new Set([...compileCommandsNvccPaths, ...systemNvccPaths])];
 }
 
 function getCudaDirectoryVersion(directoryName: string): semver.SemVer | undefined {
-    return directoryName.startsWith('cuda-') ? (semver.coerce(directoryName.slice('cuda-'.length)) ?? undefined) : undefined;
+    return directoryName.startsWith('cuda-')
+        ? (semver.coerce(directoryName.slice('cuda-'.length)) ?? undefined)
+        : undefined;
 }
 
-export function getVersionedCudaRootCandidates(usrLocalPath: string, directoryNames: string[]): string[] {
+export function getVersionedCudaRootCandidates(
+    usrLocalPath: string,
+    directoryNames: string[]
+): string[] {
     const candidates: Array<{ directoryName: string; version: semver.SemVer }> = [];
 
     for (const directoryName of directoryNames) {
@@ -138,7 +169,9 @@ async function getSystemNvccCandidates(): Promise<string[]> {
 
     try {
         const entries = await fs.readdir('/usr/local', { withFileTypes: true });
-        const directoryNames = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+        const directoryNames = entries
+            .filter((entry) => entry.isDirectory())
+            .map((entry) => entry.name);
         for (const cudaRoot of getVersionedCudaRootCandidates('/usr/local', directoryNames)) {
             nvccPaths.push(path.join(cudaRoot, 'bin', 'nvcc'));
         }
@@ -155,7 +188,10 @@ function getCudaTargetDirectoryName(): string {
 }
 
 async function findCudaIncludeDir(cudaRoot: string): Promise<string | undefined> {
-    const candidates = [path.join(cudaRoot, 'targets', getCudaTargetDirectoryName(), 'include'), path.join(cudaRoot, 'include')];
+    const candidates = [
+        path.join(cudaRoot, 'targets', getCudaTargetDirectoryName(), 'include'),
+        path.join(cudaRoot, 'include')
+    ];
 
     for (const candidate of candidates) {
         if (await directoryExists(candidate)) {
@@ -165,7 +201,10 @@ async function findCudaIncludeDir(cudaRoot: string): Promise<string | undefined>
     return undefined;
 }
 
-async function buildCudaEnvironment(cudaRoot: string, cudaGpuArch: string): Promise<CudaEnvironment | undefined> {
+async function buildCudaEnvironment(
+    cudaRoot: string,
+    cudaGpuArch: string
+): Promise<CudaEnvironment | undefined> {
     const cudaIncludeDir = await findCudaIncludeDir(cudaRoot);
     if (!cudaIncludeDir) {
         return undefined;
@@ -175,7 +214,10 @@ async function buildCudaEnvironment(cudaRoot: string, cudaGpuArch: string): Prom
     return { cudaRoot, cudaIncludeDir, cudaCcclIncludeDir, cudaGpuArch };
 }
 
-async function findCudaCcclIncludeDir(cudaIncludeDir: string, cudaRoot: string): Promise<string | undefined> {
+async function findCudaCcclIncludeDir(
+    cudaIncludeDir: string,
+    cudaRoot: string
+): Promise<string | undefined> {
     const candidates = [path.join(cudaIncludeDir, 'cccl'), path.join(cudaRoot, 'include', 'cccl')];
 
     for (const candidate of candidates) {
@@ -187,19 +229,29 @@ async function findCudaCcclIncludeDir(cudaIncludeDir: string, cudaRoot: string):
 }
 
 // compile_commands.json parsing.
-export async function readGpuArchFromCompileCommands(compileCommandsPath: string): Promise<string | undefined> {
+export async function readGpuArchFromCompileCommands(
+    compileCommandsPath: string
+): Promise<string | undefined> {
     try {
-        const compileCommands = JSON.parse(await fs.readFile(compileCommandsPath, 'utf8')) as CompileCommand[];
-        const commandText = compileCommands.map((entry) => entry.command ?? entry.arguments?.join(' ') ?? '').join(' ');
+        const compileCommands = JSON.parse(
+            await fs.readFile(compileCommandsPath, 'utf8')
+        ) as CompileCommand[];
+        const commandText = compileCommands
+            .map((entry) => entry.command ?? entry.arguments?.join(' ') ?? '')
+            .join(' ');
         return extractCudaGpuArch(commandText);
     } catch {
         return undefined;
     }
 }
 
-export async function readNvccPathsFromCompileCommands(compileCommandsPath: string): Promise<string[]> {
+export async function readNvccPathsFromCompileCommands(
+    compileCommandsPath: string
+): Promise<string[]> {
     try {
-        const compileCommands = JSON.parse(await fs.readFile(compileCommandsPath, 'utf8')) as CompileCommand[];
+        const compileCommands = JSON.parse(
+            await fs.readFile(compileCommandsPath, 'utf8')
+        ) as CompileCommand[];
         const nvccPaths: string[] = [];
 
         for (const entry of compileCommands) {

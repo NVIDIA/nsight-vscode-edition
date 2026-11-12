@@ -178,36 +178,48 @@ describe('Locals and watches tests', () => {
                 ],
                 customTask: async (stoppedContext: StoppedContext): Promise<StoppedContext> => {
                     await dc.nextRequest({ threadId: stoppedContext.threadId });
-                    const stoppedContextAt1stNext = await TestUtils.verifyLocalsOnStop(dc, framesSource, 112, 'step', [
-                        {
-                            name: 'a',
-                            value: '3'
-                        },
-                        {
-                            name: 'b',
-                            value: '3'
-                        },
-                        {
-                            name: 'c',
-                            value: "52 '4'"
-                        }
-                    ]);
+                    const stoppedContextAt1stNext = await TestUtils.verifyLocalsOnStop(
+                        dc,
+                        framesSource,
+                        112,
+                        'step',
+                        [
+                            {
+                                name: 'a',
+                                value: '3'
+                            },
+                            {
+                                name: 'b',
+                                value: '3'
+                            },
+                            {
+                                name: 'c',
+                                value: "52 '4'"
+                            }
+                        ]
+                    );
 
                     await dc.nextRequest({ threadId: stoppedContextAt1stNext.threadId });
-                    const stoppedContextAt2ndtNext = await TestUtils.verifyLocalsOnStop(dc, framesSource, 113, 'step', [
-                        {
-                            name: 'a',
-                            value: '2'
-                        },
-                        {
-                            name: 'b',
-                            value: '3'
-                        },
-                        {
-                            name: 'c',
-                            value: "52 '4'"
-                        }
-                    ]);
+                    const stoppedContextAt2ndtNext = await TestUtils.verifyLocalsOnStop(
+                        dc,
+                        framesSource,
+                        113,
+                        'step',
+                        [
+                            {
+                                name: 'a',
+                                value: '2'
+                            },
+                            {
+                                name: 'b',
+                                value: '3'
+                            },
+                            {
+                                name: 'c',
+                                value: "52 '4'"
+                            }
+                        ]
+                    );
 
                     return stoppedContextAt2ndtNext;
                 }
@@ -245,9 +257,11 @@ describe('Locals and watches tests', () => {
 
         const bpResp = await dc.setBreakpointsRequest({
             source: TestUtils.getTestSource(framesSource),
-            breakpoints: [...new Set(expectedSequence.map((item) => item.line)).keys()].map((ln) => {
-                return { line: ln };
-            })
+            breakpoints: [...new Set(expectedSequence.map((item) => item.line)).keys()].map(
+                (ln) => {
+                    return { line: ln };
+                }
+            )
         });
 
         for (const bp of bpResp.body.breakpoints) {
@@ -257,7 +271,13 @@ describe('Locals and watches tests', () => {
         await dc.configurationDoneRequest();
 
         for (const expectedBp of expectedSequence) {
-            let stoppedContext = await TestUtils.verifyLocalsOnStop(dc, framesSource, expectedBp.line, 'breakpoint', expectedBp.expLocals);
+            let stoppedContext = await TestUtils.verifyLocalsOnStop(
+                dc,
+                framesSource,
+                expectedBp.line,
+                'breakpoint',
+                expectedBp.expLocals
+            );
 
             if (expectedBp.customTask) {
                 stoppedContext = await expectedBp.customTask(stoppedContext);
@@ -283,7 +303,10 @@ describe('Locals and watches tests', () => {
 
         await dc.configurationDoneRequest();
 
-        const getChildren = (vars: Map<string, DebugProtocol.Variable>, varName: string): Promise<Map<string, DebugProtocol.Variable>> => {
+        const getChildren = (
+            vars: Map<string, DebugProtocol.Variable>,
+            varName: string
+        ): Promise<Map<string, DebugProtocol.Variable>> => {
             const myInputRef = vars.get(varName)?.variablesReference;
             return TestUtils.getChildren(dc, myInputRef!);
         };
@@ -301,12 +324,21 @@ describe('Locals and watches tests', () => {
             }
         };
 
-        const stoppedContext = await TestUtils.verifyLocalsOnStop(dc, variablesSource, 90, 'breakpoint', [{ name: 'myInput' }]);
+        const stoppedContext = await TestUtils.verifyLocalsOnStop(
+            dc,
+            variablesSource,
+            90,
+            'breakpoint',
+            [{ name: 'myInput' }]
+        );
         const { actLocals } = stoppedContext;
         await verifyEntry(actLocals.get('myInput')!.variablesReference, 0);
 
         const idx = 19;
-        const evaluateResp = await dc.evaluateRequest({ expression: `input + ${idx}`, frameId: stoppedContext.frameId });
+        const evaluateResp = await dc.evaluateRequest({
+            expression: `input + ${idx}`,
+            frameId: stoppedContext.frameId
+        });
         await verifyEntry(evaluateResp.body.variablesReference, idx);
     });
 
@@ -325,7 +357,12 @@ describe('Locals and watches tests', () => {
         }
 
         await dc.configurationDoneRequest();
-        const stoppedLocation = await TestUtils.assertStoppedLocation(dc, 'breakpoint', concurrentSource, lineNumbers.device2);
+        const stoppedLocation = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            concurrentSource,
+            lineNumbers.device2
+        );
 
         let locals = await TestUtils.getLocals(dc, stoppedLocation.frameId);
         expect(locals, 'locals').not.has.key('argc');
@@ -352,7 +389,9 @@ describe('Locals and watches tests', () => {
 
         // Switch back to CUDA and check that we're seeing the same vars as before.
 
-        ({ stackFrames } = (await dc.stackTraceRequest({ threadId: stoppedLocation.threadId })).body);
+        ({ stackFrames } = (
+            await dc.stackTraceRequest({ threadId: stoppedLocation.threadId })
+        ).body);
         expect(stackFrames, 'device stackFrames').length.greaterThanOrEqual(1);
         [frame] = stackFrames;
         expect(frame, 'device frame').include({ name: 'kernelFunc', line: lineNumbers.device2 });
@@ -379,7 +418,12 @@ describe('Locals and watches tests', () => {
         }
 
         await dc.configurationDoneRequest();
-        const stoppedLocation = await TestUtils.assertStoppedLocation(dc, 'breakpoint', concurrentSource, lineNumbers.host2);
+        const stoppedLocation = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            concurrentSource,
+            lineNumbers.host2
+        );
 
         let locals = await TestUtils.getLocals(dc, stoppedLocation.frameId);
         expect(locals, 'host locals').not.has.key('threadNum');
@@ -388,7 +432,13 @@ describe('Locals and watches tests', () => {
 
         // Switch to CUDA thread and inspect some vars.
 
-        await dc.changeCudaFocusRequest({ focus: { type: 'software', blockIdx: { x: 0, y: 0, z: 0 }, threadIdx: { x: 0, y: 0, z: 0 } } });
+        await dc.changeCudaFocusRequest({
+            focus: {
+                type: 'software',
+                blockIdx: { x: 0, y: 0, z: 0 },
+                threadIdx: { x: 0, y: 0, z: 0 }
+            }
+        });
 
         const { threads } = (await dc.threadsRequest()).body;
         expect(threads, 'threads').length.greaterThan(1);
@@ -408,7 +458,9 @@ describe('Locals and watches tests', () => {
 
         // Switch back to main thread and check that we're seeing the same vars as before.
 
-        ({ stackFrames } = (await dc.stackTraceRequest({ threadId: stoppedLocation.threadId })).body);
+        ({ stackFrames } = (
+            await dc.stackTraceRequest({ threadId: stoppedLocation.threadId })
+        ).body);
         expect(stackFrames, 'host stackFrames').length.greaterThanOrEqual(1);
         [frame] = stackFrames;
         expect(frame, 'host frame').include({ name: 'main', line: lineNumbers.host2 });

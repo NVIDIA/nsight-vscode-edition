@@ -1,7 +1,16 @@
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { clangdFileName, clangdNoCompilationDatabaseValue, clangdTemplateRelativePath, getClangdCompilationDatabaseValue, getClangdPath, hasClangdConfig, resolveClangdTemplate, setupClangd } from '../../src/languageSupport/clangdSetup.ts';
+import {
+    clangdFileName,
+    clangdNoCompilationDatabaseValue,
+    clangdTemplateRelativePath,
+    getClangdCompilationDatabaseValue,
+    getClangdPath,
+    hasClangdConfig,
+    resolveClangdTemplate,
+    setupClangd
+} from '../../src/languageSupport/clangdSetup.ts';
 import { type CudaEnvironment } from '../../src/languageSupport/cudaEnvironment.ts';
 
 const cudaEnvironment: CudaEnvironment = {
@@ -26,7 +35,9 @@ describe('clangd setup', () => {
         testDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'rubicon-clangd-'));
         extensionPath = path.join(testDirectory, 'extension');
         workspacePath = path.join(testDirectory, 'workspace');
-        await fs.mkdir(path.join(extensionPath, path.dirname(clangdTemplateRelativePath)), { recursive: true });
+        await fs.mkdir(path.join(extensionPath, path.dirname(clangdTemplateRelativePath)), {
+            recursive: true
+        });
         await fs.mkdir(workspacePath);
         await fs.writeFile(
             path.join(extensionPath, clangdTemplateRelativePath),
@@ -49,17 +60,32 @@ describe('clangd setup', () => {
     });
 
     test('resolves all clangd template placeholders', () => {
-        const resolvedTemplate = resolveClangdTemplate('dir=@COMPILE_COMMANDS_DIR@ root=@CUDA_ROOT@ include=@CUDA_INCLUDE_DIR@ cccl=@CUDA_CCCL_INCLUDE_DIR@ arch=@CUDA_GPU_ARCH@', 'build', cudaEnvironment);
+        const resolvedTemplate = resolveClangdTemplate(
+            'dir=@COMPILE_COMMANDS_DIR@ root=@CUDA_ROOT@ include=@CUDA_INCLUDE_DIR@ cccl=@CUDA_CCCL_INCLUDE_DIR@ arch=@CUDA_GPU_ARCH@',
+            'build',
+            cudaEnvironment
+        );
 
         expect(resolvedTemplate).toContain('dir=build');
         expect(resolvedTemplate).toContain('root=/usr/local/cuda-13.2');
-        expect(resolvedTemplate).toContain('include=/usr/local/cuda-13.2/targets/x86_64-linux/include');
-        expect(resolvedTemplate).toContain('cccl=/usr/local/cuda-13.2/targets/x86_64-linux/include/cccl');
+        expect(resolvedTemplate).toContain(
+            'include=/usr/local/cuda-13.2/targets/x86_64-linux/include'
+        );
+        expect(resolvedTemplate).toContain(
+            'cccl=/usr/local/cuda-13.2/targets/x86_64-linux/include/cccl'
+        );
         expect(resolvedTemplate).toContain('arch=sm_90a');
     });
 
     test('renders optional CCCL include block only when CCCL is available', () => {
-        const template = ['CompileFlags:', '  Add:', '@IF_CUDA_CCCL_INCLUDE_DIR@', '    - -I@CUDA_CCCL_INCLUDE_DIR@', '@ENDIF_CUDA_CCCL_INCLUDE_DIR@', '    - --cuda-path=@CUDA_ROOT@'].join('\n');
+        const template = [
+            'CompileFlags:',
+            '  Add:',
+            '@IF_CUDA_CCCL_INCLUDE_DIR@',
+            '    - -I@CUDA_CCCL_INCLUDE_DIR@',
+            '@ENDIF_CUDA_CCCL_INCLUDE_DIR@',
+            '    - --cuda-path=@CUDA_ROOT@'
+        ].join('\n');
         const withoutCccl = resolveClangdTemplate(template, 'build', cudaEnvironmentWithoutCccl);
         const withCccl = resolveClangdTemplate(template, 'build', cudaEnvironment);
 
@@ -75,7 +101,10 @@ describe('clangd setup', () => {
     });
 
     test('shipped template scopes CUDA language mode to CUDA source files', async () => {
-        const template = await fs.readFile(path.join(process.cwd(), clangdTemplateRelativePath), 'utf8');
+        const template = await fs.readFile(
+            path.join(process.cwd(), clangdTemplateRelativePath),
+            'utf8'
+        );
         const [globalFragment, cudaFragment] = template.split('---');
 
         expect(template).toContain(String.raw`PathMatch: '.*\.(cu|cuh)$'`);
@@ -88,14 +117,22 @@ describe('clangd setup', () => {
     });
 
     test('shipped template has no unresolved placeholders after resolving', async () => {
-        const template = await fs.readFile(path.join(process.cwd(), clangdTemplateRelativePath), 'utf8');
+        const template = await fs.readFile(
+            path.join(process.cwd(), clangdTemplateRelativePath),
+            'utf8'
+        );
 
         expect(resolveClangdTemplate(template, 'build', cudaEnvironment)).not.toMatch(/@[A-Z_]+@/u);
-        expect(resolveClangdTemplate(template, 'build', cudaEnvironmentWithoutCccl)).not.toMatch(/@[A-Z_]+@/u);
+        expect(resolveClangdTemplate(template, 'build', cudaEnvironmentWithoutCccl)).not.toMatch(
+            /@[A-Z_]+@/u
+        );
     });
 
     test('shipped template omits project-specific or diagnostic-volume flags', async () => {
-        const template = await fs.readFile(path.join(process.cwd(), clangdTemplateRelativePath), 'utf8');
+        const template = await fs.readFile(
+            path.join(process.cwd(), clangdTemplateRelativePath),
+            'utf8'
+        );
 
         expect(template).not.toContain('-fgpu-rdc');
         expect(template).not.toContain('-ferror-limit=0');
@@ -104,7 +141,10 @@ describe('clangd setup', () => {
     });
 
     test('shipped template keeps required CUDA clangd setup flags', async () => {
-        const template = await fs.readFile(path.join(process.cwd(), clangdTemplateRelativePath), 'utf8');
+        const template = await fs.readFile(
+            path.join(process.cwd(), clangdTemplateRelativePath),
+            'utf8'
+        );
 
         expect(template).toContain('--cuda-path=@CUDA_ROOT@');
         expect(template).toContain('-I@CUDA_INCLUDE_DIR@');
@@ -115,9 +155,13 @@ describe('clangd setup', () => {
     test('formats compile_commands directory relative to workspace only when possible', () => {
         const externalCompileCommandsDir = path.join(testDirectory, 'external-build');
 
-        expect(getClangdCompilationDatabaseValue(workspacePath, path.join(workspacePath, 'build'))).toBe('build');
+        expect(
+            getClangdCompilationDatabaseValue(workspacePath, path.join(workspacePath, 'build'))
+        ).toBe('build');
         expect(getClangdCompilationDatabaseValue(workspacePath, workspacePath)).toBe('.');
-        expect(getClangdCompilationDatabaseValue(workspacePath, externalCompileCommandsDir)).toBe(externalCompileCommandsDir);
+        expect(getClangdCompilationDatabaseValue(workspacePath, externalCompileCommandsDir)).toBe(
+            externalCompileCommandsDir
+        );
     });
 
     test('writes generated .clangd files with compile_commands and fallback modes', async () => {
@@ -143,7 +187,10 @@ describe('clangd setup', () => {
             cudaEnvironment
         });
 
-        const fallbackClangd = await fs.readFile(path.join(fallbackWorkspacePath, clangdFileName), 'utf8');
+        const fallbackClangd = await fs.readFile(
+            path.join(fallbackWorkspacePath, clangdFileName),
+            'utf8'
+        );
 
         expect(fallbackResult.kind).toBe('configured');
         expect(fallbackClangd).toContain('CompilationDatabase: None');
@@ -173,7 +220,9 @@ describe('clangd setup', () => {
         await expect(hasClangdConfig(workspacePath)).resolves.toBe(true);
 
         const tooLongWorkspacePath = path.join(testDirectory, 'a'.repeat(5000));
-        await expect(hasClangdConfig(tooLongWorkspacePath)).rejects.toThrow(`Unable to inspect existing ${clangdFileName}`);
+        await expect(hasClangdConfig(tooLongWorkspacePath)).rejects.toThrow(
+            `Unable to inspect existing ${clangdFileName}`
+        );
     });
 
     test('adds context when the clangd template cannot be rendered', async () => {

@@ -16,14 +16,23 @@ function getExpectedCudaTargetDirectoryName(): string {
     return process.arch === 'arm64' ? 'aarch64-linux' : 'x86_64-linux';
 }
 
-async function createFakeCudaToolkit(cudaRoot: string, options: { includeCccl?: boolean; targetInclude?: boolean } = {}): Promise<string> {
+async function createFakeCudaToolkit(
+    cudaRoot: string,
+    options: { includeCccl?: boolean; targetInclude?: boolean } = {}
+): Promise<string> {
     const nvccPath = path.join(cudaRoot, 'bin', 'nvcc');
     const rootIncludeDir = path.join(cudaRoot, 'include');
     await fs.mkdir(path.dirname(nvccPath), { recursive: true });
-    await fs.mkdir(options.includeCccl === false ? rootIncludeDir : path.join(rootIncludeDir, 'cccl'), { recursive: true });
+    await fs.mkdir(
+        options.includeCccl === false ? rootIncludeDir : path.join(rootIncludeDir, 'cccl'),
+        { recursive: true }
+    );
 
     if (options.targetInclude) {
-        await fs.mkdir(path.join(cudaRoot, 'targets', getExpectedCudaTargetDirectoryName(), 'include', 'cccl'), { recursive: true });
+        await fs.mkdir(
+            path.join(cudaRoot, 'targets', getExpectedCudaTargetDirectoryName(), 'include', 'cccl'),
+            { recursive: true }
+        );
     }
 
     await fs.writeFile(nvccPath, '');
@@ -55,13 +64,24 @@ describe('CUDA environment helpers', () => {
     });
 
     test('ignores arch tokens outside the 2-3 digit range so a valid arch still wins', () => {
-        expect(extractCudaGpuArch('nvcc -gencode=arch=compute_90,code=sm_90 -DMAX_ARCH=sm_1000 file.cu')).toBe('sm_90');
+        expect(
+            extractCudaGpuArch(
+                'nvcc -gencode=arch=compute_90,code=sm_90 -DMAX_ARCH=sm_1000 file.cu'
+            )
+        ).toBe('sm_90');
         expect(extractCudaGpuArch('nvcc -arch=sm_9 file.cu')).toBeUndefined();
         expect(extractCudaGpuArch('nvcc -DARCH=sm_1000 file.cu')).toBeUndefined();
     });
 
     test('orders versioned CUDA roots by semantic version descending', () => {
-        expect(getVersionedCudaRootCandidates('/usr/local', ['cuda-9.2', 'cuda-13.2', 'cuda-13.10', 'cuda-backup'])).toEqual(['/usr/local/cuda-13.10', '/usr/local/cuda-13.2', '/usr/local/cuda-9.2']);
+        expect(
+            getVersionedCudaRootCandidates('/usr/local', [
+                'cuda-9.2',
+                'cuda-13.2',
+                'cuda-13.10',
+                'cuda-backup'
+            ])
+        ).toEqual(['/usr/local/cuda-13.10', '/usr/local/cuda-13.2', '/usr/local/cuda-9.2']);
     });
 
     test('skips invalid nvcc candidate and returns next complete toolkit', async () => {
@@ -70,7 +90,10 @@ describe('CUDA environment helpers', () => {
         await fs.mkdir(path.dirname(invalidNvccPath), { recursive: true });
         await fs.writeFile(invalidNvccPath, '');
 
-        const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths([invalidNvccPath, validNvccPath]);
+        const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths([
+            invalidNvccPath,
+            validNvccPath
+        ]);
 
         expect(cudaEnvironment?.cudaRoot).toBe(path.join(testDirectory, 'cuda-13.2'));
     });
@@ -92,7 +115,9 @@ describe('CUDA environment helpers', () => {
         await createFakeCudaToolkit(realCudaRoot);
         await fs.symlink(realCudaRoot, symlinkCudaRoot, 'dir');
 
-        const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths([path.join(symlinkCudaRoot, 'bin', 'nvcc')]);
+        const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths([
+            path.join(symlinkCudaRoot, 'bin', 'nvcc')
+        ]);
 
         expect(cudaEnvironment).toMatchObject({
             cudaRoot: symlinkCudaRoot,
@@ -104,13 +129,19 @@ describe('CUDA environment helpers', () => {
     test('uses configured GPU arch when resolving a complete toolkit', async () => {
         const validNvccPath = await createFakeCudaToolkit(path.join(testDirectory, 'cuda-13.2'));
 
-        const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths([validNvccPath], undefined, 'sm_90');
+        const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths(
+            [validNvccPath],
+            undefined,
+            'sm_90'
+        );
 
         expect(cudaEnvironment?.cudaGpuArch).toBe('sm_90');
     });
 
     test('resolves a toolkit without a CCCL include directory', async () => {
-        const validNvccPath = await createFakeCudaToolkit(path.join(testDirectory, 'cuda-12.0'), { includeCccl: false });
+        const validNvccPath = await createFakeCudaToolkit(path.join(testDirectory, 'cuda-12.0'), {
+            includeCccl: false
+        });
 
         const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths([validNvccPath]);
 
@@ -123,7 +154,12 @@ describe('CUDA environment helpers', () => {
 
     test('prefers target-specific CUDA include directory when available', async () => {
         const cudaRoot = path.join(testDirectory, 'cuda-13.2');
-        const targetIncludeDir = path.join(cudaRoot, 'targets', getExpectedCudaTargetDirectoryName(), 'include');
+        const targetIncludeDir = path.join(
+            cudaRoot,
+            'targets',
+            getExpectedCudaTargetDirectoryName(),
+            'include'
+        );
         const validNvccPath = await createFakeCudaToolkit(cudaRoot, { targetInclude: true });
 
         const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths([validNvccPath]);
@@ -147,7 +183,14 @@ describe('CUDA environment helpers', () => {
     });
 
     test('rejects invalid configured GPU arches so they fall back', () => {
-        for (const configuredArch of ['sm_9', 'compute_5', 'sm_1000', 'sm_', 'bad_arch', 'gfx90a']) {
+        for (const configuredArch of [
+            'sm_9',
+            'compute_5',
+            'sm_1000',
+            'sm_',
+            'bad_arch',
+            'gfx90a'
+        ]) {
             expect(normalizeCudaGpuArch(configuredArch)).toBeUndefined();
         }
     });
@@ -157,9 +200,15 @@ describe('CUDA environment helpers', () => {
             ['compute_90', 'sm_90'],
             ['compute_90a', 'sm_90a']
         ] as const) {
-            const validNvccPath = await createFakeCudaToolkit(path.join(testDirectory, `cuda-${expectedArch}`));
+            const validNvccPath = await createFakeCudaToolkit(
+                path.join(testDirectory, `cuda-${expectedArch}`)
+            );
 
-            const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths([validNvccPath], undefined, configuredArch);
+            const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths(
+                [validNvccPath],
+                undefined,
+                configuredArch
+            );
 
             expect(cudaEnvironment?.cudaGpuArch).toBe(expectedArch);
         }
@@ -168,9 +217,16 @@ describe('CUDA environment helpers', () => {
     test('falls back to compile commands when configured GPU arch is invalid', async () => {
         const validNvccPath = await createFakeCudaToolkit(path.join(testDirectory, 'cuda-13.2'));
         const compileCommandsPath = path.join(testDirectory, 'compile_commands.json');
-        await fs.writeFile(compileCommandsPath, JSON.stringify([{ command: 'nvcc -arch=sm_90 a.cu' }]));
+        await fs.writeFile(
+            compileCommandsPath,
+            JSON.stringify([{ command: 'nvcc -arch=sm_90 a.cu' }])
+        );
 
-        const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths([validNvccPath], compileCommandsPath, 'bad_arch');
+        const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths(
+            [validNvccPath],
+            compileCommandsPath,
+            'bad_arch'
+        );
 
         expect(cudaEnvironment?.cudaGpuArch).toBe('sm_90');
     });
@@ -178,21 +234,38 @@ describe('CUDA environment helpers', () => {
     test('falls back to the default when configured GPU arch is invalid and no arch is discovered', async () => {
         const validNvccPath = await createFakeCudaToolkit(path.join(testDirectory, 'cuda-13.2'));
 
-        const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths([validNvccPath], undefined, 'bad_arch');
+        const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths(
+            [validNvccPath],
+            undefined,
+            'bad_arch'
+        );
 
         expect(cudaEnvironment?.cudaGpuArch).toBe('sm_80');
     });
 
     test('picks the highest arch across compile_commands entries', async () => {
         const compileCommandsPath = path.join(testDirectory, 'compile_commands.json');
-        await fs.writeFile(compileCommandsPath, JSON.stringify([{ command: 'nvcc -arch=sm_80 a.cu' }, { command: 'nvcc -arch=sm_90 b.cu' }, { command: 'nvcc -arch=sm_80 c.cu' }]));
+        await fs.writeFile(
+            compileCommandsPath,
+            JSON.stringify([
+                { command: 'nvcc -arch=sm_80 a.cu' },
+                { command: 'nvcc -arch=sm_90 b.cu' },
+                { command: 'nvcc -arch=sm_80 c.cu' }
+            ])
+        );
 
         await expect(readGpuArchFromCompileCommands(compileCommandsPath)).resolves.toBe('sm_90');
     });
 
     test('prefers the "a" arch variant on numeric tie', async () => {
         const compileCommandsPath = path.join(testDirectory, 'compile_commands.json');
-        await fs.writeFile(compileCommandsPath, JSON.stringify([{ command: 'nvcc -arch=sm_90 a.cu' }, { command: 'nvcc -arch=sm_90a b.cu' }]));
+        await fs.writeFile(
+            compileCommandsPath,
+            JSON.stringify([
+                { command: 'nvcc -arch=sm_90 a.cu' },
+                { command: 'nvcc -arch=sm_90a b.cu' }
+            ])
+        );
 
         await expect(readGpuArchFromCompileCommands(compileCommandsPath)).resolves.toBe('sm_90a');
     });
@@ -211,13 +284,21 @@ describe('CUDA environment helpers', () => {
             ])
         );
 
-        await expect(readNvccPathsFromCompileCommands(compileCommandsPath)).resolves.toEqual([firstNvccPath, secondNvccPath]);
+        await expect(readNvccPathsFromCompileCommands(compileCommandsPath)).resolves.toEqual([
+            firstNvccPath,
+            secondNvccPath
+        ]);
     });
 
     test('uses compile commands nvcc candidates before system CUDA candidates', async () => {
-        const compileCommandsNvccPath = await createFakeCudaToolkit(path.join(testDirectory, 'cuda-12.4'));
+        const compileCommandsNvccPath = await createFakeCudaToolkit(
+            path.join(testDirectory, 'cuda-12.4')
+        );
         const compileCommandsPath = path.join(testDirectory, 'compile_commands.json');
-        await fs.writeFile(compileCommandsPath, JSON.stringify([{ arguments: [compileCommandsNvccPath, '-arch=sm_80', 'a.cu'] }]));
+        await fs.writeFile(
+            compileCommandsPath,
+            JSON.stringify([{ arguments: [compileCommandsNvccPath, '-arch=sm_80', 'a.cu'] }])
+        );
 
         const cudaEnvironment = await resolveCudaEnvironment(compileCommandsPath);
 
@@ -228,10 +309,19 @@ describe('CUDA environment helpers', () => {
         const invalidNvccPath = path.join(testDirectory, 'missing-cuda', 'bin', 'nvcc');
         const fallbackNvccPath = await createFakeCudaToolkit(path.join(testDirectory, 'cuda-13.2'));
         const compileCommandsPath = path.join(testDirectory, 'compile_commands.json');
-        await fs.writeFile(compileCommandsPath, JSON.stringify([{ command: `${invalidNvccPath} -arch=sm_80 a.cu` }]));
-        const nvccPaths = [...(await readNvccPathsFromCompileCommands(compileCommandsPath)), fallbackNvccPath];
+        await fs.writeFile(
+            compileCommandsPath,
+            JSON.stringify([{ command: `${invalidNvccPath} -arch=sm_80 a.cu` }])
+        );
+        const nvccPaths = [
+            ...(await readNvccPathsFromCompileCommands(compileCommandsPath)),
+            fallbackNvccPath
+        ];
 
-        const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths(nvccPaths, compileCommandsPath);
+        const cudaEnvironment = await resolveCudaEnvironmentFromNvccPaths(
+            nvccPaths,
+            compileCommandsPath
+        );
 
         expect(cudaEnvironment?.cudaRoot).toBe(path.join(testDirectory, 'cuda-13.2'));
     });

@@ -9,7 +9,11 @@
 |                                                                                      |
 \* ---------------------------------------------------------------------------------- */
 
-import { type InstalledLanguageProviders, type LanguageProvider, languageProviderIds } from './providers';
+import {
+    type InstalledLanguageProviders,
+    type LanguageProvider,
+    languageProviderIds
+} from './providers';
 
 export type LanguageProviderPreference = LanguageProvider | 'auto' | 'disabled';
 
@@ -36,7 +40,9 @@ function isLanguageProvider(value: string): value is LanguageProvider {
     return languageProviderIds.includes(value as LanguageProvider);
 }
 
-export function normalizeLanguageProviderPreference(preference: string): LanguageProviderPreference {
+export function normalizeLanguageProviderPreference(
+    preference: string
+): LanguageProviderPreference {
     if (preference === 'auto' || preference === 'disabled' || isLanguageProvider(preference)) {
         return preference;
     }
@@ -57,14 +63,23 @@ export function selectLanguageProvider(input: ProviderSelectionInput): ProviderS
     }
 
     if (isLanguageProvider(preference)) {
-        return installedProviders[preference] ? { kind: 'use', provider: preference } : { kind: 'install', provider: preference };
+        return installedProviders[preference]
+            ? { kind: 'use', provider: preference }
+            : { kind: 'install', provider: preference };
     }
 
-    const installedProviderIds = languageProviderIds.filter((provider) => installedProviders[provider]);
+    const installedProviderIds = languageProviderIds.filter(
+        (provider) => installedProviders[provider]
+    );
 
     if (installedProviderIds.length > 0) {
         const defaultProvider = defaultLanguageProvider(isMicrosoftVsCode);
-        return { kind: 'use', provider: installedProviders[defaultProvider] ? defaultProvider : installedProviderIds[0] };
+        return {
+            kind: 'use',
+            provider: installedProviders[defaultProvider]
+                ? defaultProvider
+                : installedProviderIds[0]
+        };
     }
 
     return { kind: 'install', provider: defaultLanguageProvider(isMicrosoftVsCode) };

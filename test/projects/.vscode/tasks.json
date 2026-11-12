@@ -6,7 +6,7 @@
             "label": "all:configure",
             "command": "configure",
             "group": "build",
-            "problemMatcher": [],
+            "problemMatcher": []
         },
         {
             "type": "cmake",
@@ -17,18 +17,16 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "problemMatcher": [],
+            "problemMatcher": []
         },
         {
             "type": "cmake",
             "label": "default:build",
             "dependsOn": "all:configure",
             "command": "build",
-            "targets": [
-                "default"
-            ],
+            "targets": ["default"],
             "group": "build",
-            "problemMatcher": [],
+            "problemMatcher": []
         },
         {
             "type": "process",
@@ -53,7 +51,16 @@
                     "beginsPattern": "^Waiting for debugger attach\\.",
                     "endsPattern": "^Waiting for debugger attach\\."
                 }
-            },
+            }
+        },
+        {
+            "type": "cmake",
+            "label": "driverApis:build",
+            "dependsOn": "all:configure",
+            "command": "build",
+            "targets": ["driverApis"],
+            "group": "build",
+            "problemMatcher": []
         }
     ]
 }

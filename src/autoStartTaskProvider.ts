@@ -38,15 +38,35 @@ export class AutoStartTaskProvider implements vscode.TaskProvider {
         }
 
         const taskList: RemoteTaskDefinition[] = [
-            { label: AutostartType.LocalHost, type: 'shell', command: 'cuda-gdbserver ${config:host}:${config:port} ${config:executable}' },
-            { label: AutostartType.RemoteHost, type: 'shell', command: 'ssh ${config:username}@${config:host} "cuda-gdbserver ${config:host}:${config:port} ${config:remoteExecutable}"' },
+            {
+                label: AutostartType.LocalHost,
+                type: 'shell',
+                command: 'cuda-gdbserver ${config:host}:${config:port} ${config:executable}'
+            },
+            {
+                label: AutostartType.RemoteHost,
+                type: 'shell',
+                command:
+                    'ssh ${config:username}@${config:host} "cuda-gdbserver ${config:host}:${config:port} ${config:remoteExecutable}"'
+            },
             {
                 label: AutostartType.ScpRemoteHost,
                 type: 'shell',
-                command: 'scp ${config:executable} ${config:username}@${config:host}:/tmp && ssh ${config:username}@${config:host} "cuda-gdbserver ${config:host}:${config:port} /tmp/${config:execName}"'
+                command:
+                    'scp ${config:executable} ${config:username}@${config:host}:/tmp && ssh ${config:username}@${config:host} "cuda-gdbserver ${config:host}:${config:port} /tmp/${config:execName}"'
             },
-            { label: AutostartType.QNXHost, type: 'shell', command: 'ssh ${config:username}@${config:host} ${config:cudaGdbServerPath} ${config:port}' },
-            { label: AutostartType.ScpQNXHost, type: 'shell', command: 'scp ${config:cudaGdbServerPath} ${config:username}@${config:host}:/tmp && ssh ${config:username}@${config:host} /tmp/cuda-gdbserver ${config:port}' }
+            {
+                label: AutostartType.QNXHost,
+                type: 'shell',
+                command:
+                    'ssh ${config:username}@${config:host} ${config:cudaGdbServerPath} ${config:port}'
+            },
+            {
+                label: AutostartType.ScpQNXHost,
+                type: 'shell',
+                command:
+                    'scp ${config:cudaGdbServerPath} ${config:username}@${config:host}:/tmp && ssh ${config:username}@${config:host} /tmp/cuda-gdbserver ${config:port}'
+            }
         ];
 
         this.tasks = taskList.map((taskItem) => this.getTask(taskItem));
@@ -56,7 +76,13 @@ export class AutoStartTaskProvider implements vscode.TaskProvider {
 
     private getTask(taskItem: RemoteTaskDefinition): vscode.Task {
         const shellExec = new vscode.ShellExecution(taskItem.command);
-        const task = new vscode.Task(taskItem, vscode.TaskScope.Workspace, taskItem.label, 'Nsight', shellExec);
+        const task = new vscode.Task(
+            taskItem,
+            vscode.TaskScope.Workspace,
+            taskItem.label,
+            'Nsight',
+            shellExec
+        );
         // Setting this again based on suggestion from https://github.com/microsoft/vscode/issues/95876
         task.definition.command = taskItem.command;
 

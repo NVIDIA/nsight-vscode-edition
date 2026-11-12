@@ -6,12 +6,26 @@
             "type": "extensionHost",
             "request": "launch",
             "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+            "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+            "preLaunchTask": "${defaultBuildTask}"
+        },
+        {
+            // The default "Extension" config reuses your real profile's globalState, so
+            // first-activation flows never see a fresh state.
+            // --profile-temp launches with a disposable temporary profile (settings,
+            // globalState, installed extensions all fresh) that VS Code deletes when the
+            // window closes. You may need to install Remote SSH and reload window when
+            // developing remotely.
+            "name": "Extension with Reset",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
             "args": [
+                "--profile-temp",
                 "--extensionDevelopmentPath=${workspaceFolder}"
             ],
-            "outFiles": [
-                "${workspaceFolder}/dist/**/*.js"
-            ],
+            "outFiles": ["${workspaceFolder}/dist/**/*.js"],
             "preLaunchTask": "${defaultBuildTask}"
         },
         {
@@ -25,16 +39,16 @@
                 "${workspaceRoot}/node_modules/.bin/jest",
                 "--runInBand",
                 "--testNamePattern",
-                "${input:testsPattern}",
+                "${input:testsPattern}"
             ],
             "console": "integratedTerminal"
-        },
+        }
     ],
     "inputs": [
         {
             "id": "testsPattern",
             "type": "promptString",
-            "description": "Title of the test case or test suite to run. Leave blank to run all tests.",
-        },
+            "description": "Title of the test case or test suite to run. Leave blank to run all tests."
+        }
     ]
 }

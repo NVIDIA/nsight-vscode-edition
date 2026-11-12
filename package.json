@@ -1,7 +1,7 @@
 {
     "name": "nsight-vscode-edition",
     "type": "commonjs",
-    "version": "2026.1.0",
+    "version": "2026.2.0",
     "displayName": "Nsight Visual Studio Code Edition",
     "description": "CUDA development and debugging support for VS Code",
     "publisher": "nvidia",
@@ -11,6 +11,7 @@
         "name": "NVIDIA"
     },
     "engines": {
+        "node": ">=22.16.0 <23",
         "vscode": "^1.101.0"
     },
     "devEngines": {
@@ -107,7 +108,8 @@
             {
                 "command": "cuda.changeDebugFocus",
                 "title": "Change CUDA debug focus",
-                "category": "CUDA"
+                "category": "CUDA",
+                "icon": "$(arrow-swap)"
             },
             {
                 "command": "cuda.configureLanguageSupport",
@@ -118,8 +120,26 @@
                 "command": "cuda.generateClangdConfig",
                 "title": "Generate .clangd",
                 "category": "CUDA"
+            },
+            {
+                "command": "cuda.warpInfo.focus",
+                "title": "Focus on Warp Info View",
+                "category": "CUDA",
+                "icon": "$(chip)"
             }
         ],
+        "menus": {
+            "debug/toolBar": [
+                {
+                    "command": "cuda.changeDebugFocus",
+                    "when": "debugType == 'cuda-gdb' || debugType == 'cuda-gdbserver' || debugType == 'cuda-qnx-gdbserver'"
+                },
+                {
+                    "command": "cuda.warpInfo.focus",
+                    "when": "debugType == 'cuda-gdb' || debugType == 'cuda-gdbserver' || debugType == 'cuda-qnx-gdbserver'"
+                }
+            ]
+        },
         "configuration": {
             "title": "Nsight CUDA",
             "properties": {
@@ -213,7 +233,7 @@
                                     "string",
                                     "array"
                                 ],
-                                "description": "Command-line arguments to pass to the debuggee.",
+                                "description": "Command-line arguments to pass to cuda-gdb.",
                                 "default": ""
                             },
                             "verboseLogging": {
@@ -340,10 +360,6 @@
                                 "description": "Path to the program to debug.",
                                 "default": "${workspaceFolder}/a.out"
                             },
-                            "port": {
-                                "type": "number",
-                                "description": "Port to use when attaching."
-                            },
                             "processId": {
                                 "anyOf": [
                                     {
@@ -371,7 +387,7 @@
                                     "string",
                                     "array"
                                 ],
-                                "description": "Command-line arguments to pass to the debuggee.",
+                                "description": "Command-line arguments to pass to cuda-gdb.",
                                 "default": ""
                             },
                             "verboseLogging": {
@@ -586,7 +602,7 @@
                                     "string",
                                     "array"
                                 ],
-                                "description": "Command-line arguments to pass to the debuggee.",
+                                "description": "Command-line arguments to pass to cuda-gdb.",
                                 "default": ""
                             },
                             "verboseLogging": {
@@ -794,7 +810,7 @@
                             "autostart": {
                                 "mode": "local"
                             },
-                            "program": "${workspaceFolder}/a.out"
+                            "program": "^\"\\${workspaceFolder}/a.out\""
                         }
                     },
                     {
@@ -811,7 +827,7 @@
                                 "sshKeyPath": "",
                                 "sshPort": "22"
                             },
-                            "program": "${workspaceFolder}/a.out",
+                            "program": "^\"\\${workspaceFolder}/a.out\"",
                             "target": {
                                 "host": "remote-host",
                                 "port": "2345",
@@ -832,7 +848,7 @@
                                 "sshKeyPath": "",
                                 "sshPort": "22"
                             },
-                            "program": "${workspaceFolder}/a.out",
+                            "program": "^\"\\${workspaceFolder}/a.out\"",
                             "target": {
                                 "host": "remote-host",
                                 "port": "2345",
@@ -958,7 +974,7 @@
                                     "string",
                                     "array"
                                 ],
-                                "description": "Command-line arguments to pass to the debuggee.",
+                                "description": "Command-line arguments to pass to cuda-gdb.",
                                 "default": ""
                             },
                             "verboseLogging": {
@@ -1175,7 +1191,7 @@
                                 "sshPort": "22",
                                 "remoteUploadPath": "/storage"
                             },
-                            "program": "${workspaceFolder}/a.out",
+                            "program": "^\"\\${workspaceFolder}/a.out\"",
                             "target": {
                                 "host": "qnx-target-host",
                                 "port": "2346",
@@ -1197,7 +1213,7 @@
                                 "localCudaGdbServerPath": "/path/to/qnx-cuda-gdbserver",
                                 "remoteUploadPath": "/storage"
                             },
-                            "program": "${workspaceFolder}/a.out",
+                            "program": "^\"\\${workspaceFolder}/a.out\"",
                             "target": {
                                 "host": "qnx-target-host",
                                 "port": "2346"
@@ -1208,25 +1224,45 @@
                     }
                 ]
             }
-        ]
+        ],
+        "viewsContainers": {
+            "panel": [
+                {
+                    "id": "nvidia-nsight-panel",
+                    "title": "Warp Info",
+                    "icon": "$(chip)"
+                }
+            ]
+        },
+        "views": {
+            "nvidia-nsight-panel": [
+                {
+                    "id": "cuda.warpInfo",
+                    "name": "Warp Info",
+                    "icon": "$(chip)",
+                    "type": "webview"
+                }
+            ]
+        }
     },
     "scripts": {
         "clean": "rm -rf ./test/projects/build ./dist ./out ./*.vsix && (cd ./src/test/testPrograms && make clean)",
         "lint": "eslint .",
         "tsc": "tsc -b .",
-        "build": "npm run build --workspace=cdt-gdb-adapter && npx node bundle.mts extension debugAdapter",
+        "build": "npm run build --workspace=cdt-gdb-adapter && node bundle.mts extension debugAdapter warpInfo",
         "build:vscode": "npm run build -- --vscode",
         "build:test": "cmake -S ./test/projects -B ./test/projects/build && cmake --build ./test/projects/build",
-        "build:test:extension-host": "npx node test/extensionHost/build.mts",
-        "watch": "npx node bundle.mts extension --watch",
+        "build:test:extension-host": "node test/extensionHost/build.mts",
+        "watch": "node bundle.mts extension warpInfo --watch",
         "watch:vscode": "npm run watch -- --vscode",
         "pretest": "npm run build && npm run build:test",
         "test": "jest",
         "test:language-support": "jest test/languageSupport --runInBand",
-        "test:extension-host": "npm run build && npm run build:test:extension-host && npx node out/extensionHost/runTest.js",
+        "test:extension-host": "npm run build && npm run build:test:extension-host && node out/extensionHost/runTest.js",
         "test:extension-host:language-support": "npm run test:extension-host",
         "package": "npm run tsc && npm run lint && npm run build && npm run update-notices && npx vsce package",
-        "update-notices": "npm install && npx node third-party-notices-update.mts"
+        "update-notices": "node third-party-notices-update.mts",
+        "build:webview": "node bundle.mts warpInfo"
     },
     "devDependencies": {
         "@eslint/js": "^9.27.0",
@@ -1236,7 +1272,9 @@
         "@types/jest": "^30.0.0",
         "@types/license-checker": "^25.0.6",
         "@types/mocha": "^10.0.7",
-        "@types/node": "^24.0.4",
+        "@types/node": "^22.15.0",
+        "@types/react": "19.3.0",
+        "@types/react-dom": "19.3.0",
         "@types/semver": "^7.7.0",
         "@types/ssh2": "^1.11.15",
         "@types/which": "^3.0.4",
@@ -1254,6 +1292,7 @@
         "eslint-plugin-import-x": "^4.14.1",
         "eslint-plugin-prettier": "^5.4.0",
         "eslint-plugin-promise": "^7.2.1",
+        "eslint-plugin-react-hooks": "7.0.1",
         "eslint-plugin-unicorn": "^59.0.1",
         "globals": "^16.2.0",
         "jest": "^30.0.0",
@@ -1269,10 +1308,13 @@
         "yargs": "^18.0.0"
     },
     "dependencies": {
+        "@tanstack/react-virtual": "3.14.13",
         "@types/vscode": "^1.101.0",
         "@vscode/debugadapter": "^1.68.0",
         "@vscode/debugprotocol": "^1.68.0",
         "cdt-gdb-adapter": "0.0.19",
+        "react": "19.3.0",
+        "react-dom": "19.3.0",
         "semver": "^7.7.2",
         "ssh-config": "^4.4.0",
         "ssh2": "^1.15.0",

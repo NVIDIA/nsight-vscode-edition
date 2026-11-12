@@ -15,6 +15,5 @@ target_compile_features(default PRIVATE cxx_std_20)
 
 set_target_properties(default PROPERTIES
     POSITION_INDEPENDENT_CODE ON
-    CUDA_ARCHITECTURES 75 80 86 87 89 90 100 101 120
     CUDA_SEPARABLE_COMPILATION ON
 ) 

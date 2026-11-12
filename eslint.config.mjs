@@ -18,6 +18,7 @@ import promisePlugin from 'eslint-plugin-promise';
 import { globalIgnores } from 'eslint/config';
 import tsParser from '@typescript-eslint/parser';
 import globals from 'globals';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 const config = {
     languageOptions: {
@@ -41,7 +42,16 @@ const config = {
         'import-x/no-extraneous-dependencies': [
             'error',
             {
-                devDependencies: ['./*.js', './*.mjs', './*.ts', './*.mts', 'src/test/**/*.ts', 'src/test/**/*.mts', 'test/**/*.ts', 'test/**/*.mts']
+                devDependencies: [
+                    './*.js',
+                    './*.mjs',
+                    './*.ts',
+                    './*.mts',
+                    'src/test/**/*.ts',
+                    'src/test/**/*.mts',
+                    'test/**/*.ts',
+                    'test/**/*.mts'
+                ]
             }
         ],
 
@@ -114,7 +124,10 @@ const config = {
         '@typescript-eslint/explicit-function-return-type': ['error', { allowExpressions: true }],
 
         // Similar to 'no-use-before-define' above but disallowing using typedefs before they are declared
-        '@typescript-eslint/no-use-before-define': ['error', { functions: false, classes: false, variables: true, typedefs: true }],
+        '@typescript-eslint/no-use-before-define': [
+            'error',
+            { functions: false, classes: false, variables: true, typedefs: true }
+        ],
 
         '@typescript-eslint/no-explicit-any': 'off',
 
@@ -136,6 +149,15 @@ export default tseslint.config(
     promisePlugin.configs['flat/recommended'],
     prettierConfig,
     config,
+    {
+        files: ['src/webviews/**/*.{ts,tsx}'],
+        plugins: { 'react-hooks': reactHooks },
+        languageOptions: { globals: globals.browser },
+        rules: {
+            'react-hooks/rules-of-hooks': 'error',
+            'react-hooks/exhaustive-deps': 'error'
+        }
+    },
     globalIgnores([
         //
         'cdt-gdb-adapter',

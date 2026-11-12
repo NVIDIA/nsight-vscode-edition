@@ -29,7 +29,12 @@ describe('Register tests', () => {
         expect(bpResp.body.breakpoints[0].verified).eq(true);
 
         await dc.configurationDoneRequest();
-        const { frameId } = await TestUtils.assertStoppedLocation(dc, 'breakpoint', 'variables.cu', 87);
+        const { frameId } = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            'variables.cu',
+            87
+        );
 
         const scopesResp = await dc.scopesRequest({ frameId });
         const { scopes } = scopesResp.body;
@@ -44,7 +49,9 @@ describe('Register tests', () => {
             return;
         }
 
-        let variablesResp = await dc.variablesRequest({ variablesReference: registersScope?.variablesReference });
+        let variablesResp = await dc.variablesRequest({
+            variablesReference: registersScope?.variablesReference
+        });
         let { variables } = variablesResp.body;
 
         const sassRegGroup = variables.find((v) => v.name === 'SASS');
@@ -57,7 +64,9 @@ describe('Register tests', () => {
             return;
         }
 
-        variablesResp = await dc.variablesRequest({ variablesReference: sassRegGroup?.variablesReference });
+        variablesResp = await dc.variablesRequest({
+            variablesReference: sassRegGroup?.variablesReference
+        });
 
         variables = variablesResp.body.variables;
 
@@ -85,7 +94,12 @@ describe('Register tests', () => {
         expect(bpResp.body.breakpoints[0].verified).eq(true);
 
         await dc.configurationDoneRequest();
-        const { frameId } = await TestUtils.assertStoppedLocation(dc, 'breakpoint', 'registers_test.c', 16);
+        const { frameId } = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            'registers_test.c',
+            16
+        );
 
         const scopesResp = await dc.scopesRequest({ frameId });
         const { scopes } = scopesResp.body;
@@ -99,7 +113,9 @@ describe('Register tests', () => {
             return;
         }
 
-        const variablesResp = await dc.variablesRequest({ variablesReference: registersScope?.variablesReference });
+        const variablesResp = await dc.variablesRequest({
+            variablesReference: registersScope?.variablesReference
+        });
         const { variables } = variablesResp.body;
 
         const registersMap = new Map<string, string>(variables.map((v) => [v.name, v.value]));

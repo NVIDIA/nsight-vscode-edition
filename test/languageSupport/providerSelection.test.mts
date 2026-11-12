@@ -1,5 +1,10 @@
 import { selectLanguageProvider } from '../../src/languageSupport/providerSelection.ts';
-import { installedLanguageProvidersEqual, type InstalledLanguageProviders, type LanguageProvider, languageProviderIds } from '../../src/languageSupport/providers.ts';
+import {
+    installedLanguageProvidersEqual,
+    type InstalledLanguageProviders,
+    type LanguageProvider,
+    languageProviderIds
+} from '../../src/languageSupport/providers.ts';
 
 function installedProviders(installedProviderIds: LanguageProvider[]): InstalledLanguageProviders {
     const providers = {} as InstalledLanguageProviders;
@@ -13,8 +18,18 @@ function installedProviders(installedProviderIds: LanguageProvider[]): Installed
 
 describe('CUDA language provider selection', () => {
     test('covers explicit, disabled, auto, and host-specific provider decisions', () => {
-        expect(installedLanguageProvidersEqual(installedProviders(['clangd']), installedProviders(['clangd']))).toBe(true);
-        expect(installedLanguageProvidersEqual(installedProviders(['clangd']), installedProviders(['cpptools']))).toBe(false);
+        expect(
+            installedLanguageProvidersEqual(
+                installedProviders(['clangd']),
+                installedProviders(['clangd'])
+            )
+        ).toBe(true);
+        expect(
+            installedLanguageProvidersEqual(
+                installedProviders(['clangd']),
+                installedProviders(['cpptools'])
+            )
+        ).toBe(false);
 
         for (const { preference, installed, isMicrosoftVsCode, expected } of [
             {

@@ -69,7 +69,9 @@ describe('CUDA language support smoke', () => {
         assert.ok(commands.includes('cuda.generateClangdConfig'));
         assert.equal(await fileExists(path.join(workspacePath, '.clangd')), false);
 
-        const settings = JSON.parse(await fs.readFile(path.join(workspacePath, '.vscode', 'settings.json'), 'utf8')) as Record<string, unknown>;
+        const settings = JSON.parse(
+            await fs.readFile(path.join(workspacePath, '.vscode', 'settings.json'), 'utf8')
+        ) as Record<string, unknown>;
         assert.equal(settings['C_Cpp.default.compilerPath'], undefined);
         assert.equal(settings['C_Cpp.default.compileCommands'], undefined);
     });

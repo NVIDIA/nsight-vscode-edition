@@ -14,7 +14,11 @@ import { ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { logger, OutputEvent, TerminatedEvent } from '@vscode/debugadapter';
 import { CudaGdbSession, CudaGdbBackend } from './cudaGdbSession';
-import { startGDBServerGeneric, type CudaQnxTargetLaunchRequestArguments, type CudaTargetAttachRequestArguments } from './cudaGdbServerAutostart';
+import {
+    startGDBServerGeneric,
+    type CudaQnxTargetLaunchRequestArguments,
+    type CudaTargetAttachRequestArguments
+} from './cudaGdbServerAutostart';
 import { type ClientChannel } from 'ssh2';
 import { parseProgramArgs, validateGdbServerArgs } from './cudaGdbServerConfig';
 import { buildSolibSearchPath } from './utils';
@@ -33,7 +37,10 @@ export class CudaQnxGdbServerSession extends CudaGdbSession {
 
     protected isInitialized = false;
 
-    protected async setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments): Promise<void> {
+    protected async setBreakPointsRequest(
+        response: DebugProtocol.SetBreakpointsResponse,
+        args: DebugProtocol.SetBreakpointsArguments
+    ): Promise<void> {
         await (this.gdbTargetDebugSession as any).setBreakPointsRequest.call(this, response, args);
     }
 
@@ -63,7 +70,10 @@ export class CudaQnxGdbServerSession extends CudaGdbSession {
      * It is intentional that this function overrides the base class implementation
      */
 
-    protected async launchRequest(response: DebugProtocol.LaunchResponse, args: CudaQnxTargetLaunchRequestArguments): Promise<void> {
+    protected async launchRequest(
+        response: DebugProtocol.LaunchResponse,
+        args: CudaQnxTargetLaunchRequestArguments
+    ): Promise<void> {
         logger.verbose('Executing launch request');
 
         this.initializeLogger(args);
@@ -93,7 +103,11 @@ export class CudaQnxGdbServerSession extends CudaGdbSession {
         }
 
         if (!cdtLaunchArgs.sysroot || cdtLaunchArgs.sysroot.trim().length === 0) {
-            this.sendErrorResponse(response, 1, 'sysroot parameter is required for QNX debugging workflows. Please specify the local directory containing copies of target libraries.');
+            this.sendErrorResponse(
+                response,
+                1,
+                'sysroot parameter is required for QNX debugging workflows. Please specify the local directory containing copies of target libraries.'
+            );
             return;
         }
 
@@ -136,11 +150,24 @@ export class CudaQnxGdbServerSession extends CudaGdbSession {
         this.#sshChannel = sshChannel;
     }
 
-    protected attachOrLaunchRequest(response: DebugProtocol.Response, request: 'launch' | 'attach', args: CudaQnxTargetLaunchRequestArguments): Promise<void> {
-        return (this.gdbTargetDebugSession as any).attachOrLaunchRequest.call(this, response, request, args, true);
+    protected attachOrLaunchRequest(
+        response: DebugProtocol.Response,
+        request: 'launch' | 'attach',
+        args: CudaQnxTargetLaunchRequestArguments
+    ): Promise<void> {
+        return (this.gdbTargetDebugSession as any).attachOrLaunchRequest.call(
+            this,
+            response,
+            request,
+            args,
+            true
+        );
     }
 
-    protected async startGDBAndAttachToTarget(response: DebugProtocol.AttachResponse | DebugProtocol.LaunchResponse, args: CudaQnxTargetLaunchRequestArguments): Promise<void> {
+    protected async startGDBAndAttachToTarget(
+        response: DebugProtocol.AttachResponse | DebugProtocol.LaunchResponse,
+        args: CudaQnxTargetLaunchRequestArguments
+    ): Promise<void> {
         args.preRunCommands = args.preRunCommands || [];
 
         const sysroot = args.sysroot!; // Already validated in launchRequest
@@ -148,20 +175,33 @@ export class CudaQnxGdbServerSession extends CudaGdbSession {
         // Include the user-provided search path before all directories in the QNX sysroot.
         const solibSearchPath = buildSolibSearchPath(sysroot, args.additionalSOLibSearchPath);
 
-        args.preRunCommands.push(`set sysroot ${sysroot}`, `set solib-search-path ${solibSearchPath}`);
+        args.preRunCommands.push(
+            `set sysroot ${sysroot}`,
+            `set solib-search-path ${solibSearchPath}`
+        );
 
         // executableUploadPath is set by startGDBServerGeneric in autostart modes.
         // In connect-only mode (no autostart) users may set it explicitly via executableUploadPath.
         if (args.executableUploadPath) {
             args.preRunCommands.push(`set nto-executable ${args.executableUploadPath}`);
         } else if (!args.autostart?.mode) {
-            logger.warn('executableUploadPath not set in connect-only mode; shared-library resolution and backtraces may be incomplete. Set executableUploadPath to the remote path of the debuggee.');
+            logger.warn(
+                'executableUploadPath not set in connect-only mode; shared-library resolution and backtraces may be incomplete. Set executableUploadPath to the remote path of the debuggee.'
+            );
         }
 
-        await (this.gdbTargetDebugSession as any).startGDBAndAttachToTarget.call(this, response, args, true);
+        await (this.gdbTargetDebugSession as any).startGDBAndAttachToTarget.call(
+            this,
+            response,
+            args,
+            true
+        );
     }
 
-    protected async disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments): Promise<void> {
+    protected async disconnectRequest(
+        response: DebugProtocol.DisconnectResponse,
+        args: DebugProtocol.DisconnectArguments
+    ): Promise<void> {
         try {
             if (this.#sshChannel) {
                 logger.verbose('[ssh] Closing SSH channel');
@@ -172,8 +212,14 @@ export class CudaQnxGdbServerSession extends CudaGdbSession {
             // Call parent disconnect (which handles GDB exit and gdbserver cleanup)
             await (this.gdbTargetDebugSession as any).disconnectRequest.call(this, response, args);
         } catch (error) {
-            logger.error(`Error during disconnect: ${error instanceof Error ? error.message : String(error)}`);
-            this.sendErrorResponse(response, 1, error instanceof Error ? error.message : String(error));
+            logger.error(
+                `Error during disconnect: ${error instanceof Error ? error.message : String(error)}`
+            );
+            this.sendErrorResponse(
+                response,
+                1,
+                error instanceof Error ? error.message : String(error)
+            );
         }
     }
 }

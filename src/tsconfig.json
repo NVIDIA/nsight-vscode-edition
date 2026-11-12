@@ -3,11 +3,11 @@
     "compilerOptions": {
         "module": "ES2022",
         "moduleResolution": "Bundler",
+        "lib": ["ES2023", "DOM", "DOM.Iterable"],
         "types": ["node", "vscode"],
+        "jsx": "react-jsx"
     },
-    "include": ["**/*.ts", "**/*.mts", "**/*.json"],
+    "include": ["**/*.ts", "**/*.mts", "**/*.json", "**/*.tsx"],
     "exclude": ["test"],
-    "references": [
-        {"path": "../cdt-gdb-adapter" },
-    ]
+    "references": [{ "path": "../cdt-gdb-adapter" }]
 }

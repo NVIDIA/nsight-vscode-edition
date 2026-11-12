@@ -1,6 +1,42 @@
 # Nsight Visual Studio Code Edition Changelog
 
 
+## Version 2026.2
+
+* **Key Features**
+    * Added the Warp Info view, showing every warp and lane on the current GPU with their state, PC, and active/divergent masks, with filtering, sorting, and one-click CUDA focus changes.
+
+    * Added instruction-level stepping: Step Over and Step Into advance one GPU instruction at a time when invoked from the Disassembly view.
+
+* **General Enhancements**
+
+    * Debug Adapter Protocol traffic for each session is now written to a log file to help troubleshoot debugging issues; its path is reported in the DEBUG CONSOLE. The Debug Console itself keeps showing cuda-gdb's output, errors, and command results.
+
+    * Pending source breakpoints (eg. breakpoints from JIT code, delayed function/module load) are now properly reported as unverified until cuda-gdb resolves them, instead of always showing as verified.
+
+    * Fixed breakpoint conditions being silently dropped from pending breakpoints. A warning is also shown when cuda-gdb failed to parse a condition.
+
+    * Fixed the Disassembly view showing wrong or stale instructions when a source file could not be opened. A warning is printed to the DEBUG CONSOLE when a source file is unavailable, since source-line annotations for that file cannot be shown.
+
+    * Fixed two launch configuration issues: the Auto-start snippets added via "Debug: Add Configuration..." inserted `"program": "/a.out"` instead of `"${workspaceFolder}/a.out"`, and `miDebuggerArgs` was not passed to cuda-gdb.
+
+    * Fixed the default "CUDA GDB Server: Launch" configuration failing to connect to an already running cuda-gdbserver.
+
+    * Fixed "CUDA GDB Server: Auto-start (Local)" sessions ending with a "this.stopGDBServer is not a function" error on stop; the cuda-gdbserver they started is now stopped on disconnect.
+
+    * Fixed log lines from concurrent debug sessions being written to the wrong session's `logFile`.
+
+    * Fixed Debug Console commands rejected by cuda-gdb (`-exec`, backtick, `-mi`) showing no result and leaving a "Canceled" row when the session ended; cuda-gdb's error message is now shown as the command's result.
+
+    * Fixed a rejected CUDA focus change being reported twice.
+
+    * CUDA commands typed in the Debug Console that change the focus, such as `-exec cuda thread (2,0,0)`, now update the Call Stack and the editor's current line, the same as changing the focus from the status bar.
+
+    * Fixed kernel local variables missing from the VARIABLES view, and Debug Console commands failing with "No symbol in current context", after the CUDA Built-ins were shown.
+
+* **CUDA Debugger**
+    * See cuda-gdb release notes in the NVIDIA CUDA Toolkit 13.5.
+
 ## Version 2026.1
 
 * **Key Features**

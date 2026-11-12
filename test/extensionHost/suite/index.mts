@@ -25,7 +25,11 @@ export async function run(): Promise<void> {
     await new Promise<void>((resolve, reject) => {
         mocha.run((failures) => {
             if (failures > 0) {
-                reject(new Error(`${failures} extension-host smoke test${failures === 1 ? '' : 's'} failed.`));
+                reject(
+                    new Error(
+                        `${failures} extension-host smoke test${failures === 1 ? '' : 's'} failed.`
+                    )
+                );
                 return;
             }
 

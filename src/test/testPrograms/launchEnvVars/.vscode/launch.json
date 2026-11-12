@@ -1,5 +1,5 @@
 {
-   "version": "0.2.0",
+    "version": "0.2.0",
     "configurations": [
         {
             "name": "CUDA: Debug with CUDA-GDB",
@@ -13,6 +13,5 @@
             "cwd": "~",
             "stopAtEntry": true
         }
-
     ]
 }

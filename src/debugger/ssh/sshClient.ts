@@ -51,7 +51,12 @@ interface ParsedSSHConfig {
  *
  * This enables a "zero-prompt" experience when default keys exist and are not encrypted.
  */
-export async function gatherSSHCredentials(host: string, sshPort: string | undefined, sshUsername?: string, sshKeyPath?: string): Promise<ExtendedConnectConfig> {
+export async function gatherSSHCredentials(
+    host: string,
+    sshPort: string | undefined,
+    sshUsername?: string,
+    sshKeyPath?: string
+): Promise<ExtendedConnectConfig> {
     // Get SSH config values (if available)
     const sshConfig = parseSSHConfigForHost(host);
 
@@ -61,9 +66,17 @@ export async function gatherSSHCredentials(host: string, sshPort: string | undef
     const localUsername = os.userInfo().username;
     const username = sshUsername || sshConfig?.user || localUsername;
 
-    const resolvedKeyPath = sshKeyPath || (sshConfig?.identityFile ? expandTilde(sshConfig.identityFile) : undefined) || findDefaultSshKey();
+    const resolvedKeyPath =
+        sshKeyPath ||
+        (sshConfig?.identityFile ? expandTilde(sshConfig.identityFile) : undefined) ||
+        findDefaultSshKey();
 
-    let credentials: { password?: string; privateKey?: Buffer; passphrase?: string; privateKeyPath?: string };
+    let credentials: {
+        password?: string;
+        privateKey?: Buffer;
+        passphrase?: string;
+        privateKeyPath?: string;
+    };
     if (resolvedKeyPath) {
         logger.verbose(`[ssh] Using key-based authentication with key: ${resolvedKeyPath}`);
         const privateKey = fs.readFileSync(resolvedKeyPath);
@@ -83,7 +96,17 @@ export async function gatherSSHCredentials(host: string, sshPort: string | undef
 }
 
 // SSH Connection Configuration
-function buildConnectConfig(host: string, port: string | undefined, username: string, credentials: { password?: string; privateKey?: Buffer; passphrase?: string; privateKeyPath?: string }): ExtendedConnectConfig {
+function buildConnectConfig(
+    host: string,
+    port: string | undefined,
+    username: string,
+    credentials: {
+        password?: string;
+        privateKey?: Buffer;
+        passphrase?: string;
+        privateKeyPath?: string;
+    }
+): ExtendedConnectConfig {
     const baseConfig: any = { host, username };
     if (port !== undefined) {
         baseConfig.port = Number(port);
@@ -94,7 +117,13 @@ function buildConnectConfig(host: string, port: string | undefined, username: st
     }
 
     if (credentials.privateKey) {
-        const keyConfig = credentials.passphrase ? { ...baseConfig, privateKey: credentials.privateKey, passphrase: credentials.passphrase } : { ...baseConfig, privateKey: credentials.privateKey };
+        const keyConfig = credentials.passphrase
+            ? {
+                  ...baseConfig,
+                  privateKey: credentials.privateKey,
+                  passphrase: credentials.passphrase
+              }
+            : { ...baseConfig, privateKey: credentials.privateKey };
         if (credentials.privateKeyPath) {
             keyConfig.privateKeyPath = credentials.privateKeyPath;
         }
@@ -122,11 +151,19 @@ function parseSSHConfigForHost(host: string): ParsedSSHConfig | undefined {
         const result: ParsedSSHConfig = {
             hostname: Array.isArray(computed.HostName) ? computed.HostName[0] : computed.HostName,
             user: Array.isArray(computed.User) ? computed.User[0] : computed.User,
-            port: computed.Port ? (Array.isArray(computed.Port) ? computed.Port[0].toString() : computed.Port.toString()) : undefined,
-            identityFile: Array.isArray(computed.IdentityFile) ? computed.IdentityFile[0] : computed.IdentityFile
+            port: computed.Port
+                ? Array.isArray(computed.Port)
+                    ? computed.Port[0].toString()
+                    : computed.Port.toString()
+                : undefined,
+            identityFile: Array.isArray(computed.IdentityFile)
+                ? computed.IdentityFile[0]
+                : computed.IdentityFile
         };
 
-        logger.verbose(`[ssh-config] Parsed config for ${host}: user=${result.user}, port=${result.port}, identityFile=${result.identityFile}`);
+        logger.verbose(
+            `[ssh-config] Parsed config for ${host}: user=${result.user}, port=${result.port}, identityFile=${result.identityFile}`
+        );
         return result;
     } catch (error: any) {
         logger.verbose(`[ssh-config] Failed to parse SSH config: ${error.message}`);
@@ -165,7 +202,12 @@ async function promptForPassphrase(keyPath: string): Promise<string> {
 // Find default SSH key if it exists
 function findDefaultSshKey(): string | undefined {
     const home = os.homedir();
-    const defaultKeyPaths = [path.join(home, '.ssh', 'id_rsa'), path.join(home, '.ssh', 'id_ed25519'), path.join(home, '.ssh', 'id_ecdsa'), path.join(home, '.ssh', 'id_dsa')];
+    const defaultKeyPaths = [
+        path.join(home, '.ssh', 'id_rsa'),
+        path.join(home, '.ssh', 'id_ed25519'),
+        path.join(home, '.ssh', 'id_ecdsa'),
+        path.join(home, '.ssh', 'id_dsa')
+    ];
 
     for (const keyPath of defaultKeyPaths) {
         if (fs.existsSync(keyPath)) {

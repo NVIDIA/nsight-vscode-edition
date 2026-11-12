@@ -33,11 +33,39 @@ export class CudaDebugClient extends DebugClient {
         this.capabilities = {};
     }
 
-    public async changeCudaFocusRequest(args: CudaDebugProtocol.ChangeCudaFocusArguments): Promise<CudaDebugProtocol.ChangeCudaFocusResponse> {
-        return (await this.send(CudaDebugProtocol.Request.changeCudaFocus, args)) as CudaDebugProtocol.ChangeCudaFocusResponse;
+    public async changeCudaFocusRequest(
+        args: CudaDebugProtocol.ChangeCudaFocusArguments
+    ): Promise<CudaDebugProtocol.ChangeCudaFocusResponse> {
+        return (await this.send(
+            CudaDebugProtocol.Request.changeCudaFocus,
+            args
+        )) as CudaDebugProtocol.ChangeCudaFocusResponse;
     }
 
-    public async expectStopped(reason: string, file: string, line: number, event: DebugProtocol.Event): Promise<StopLocationInfo> {
+    public async cudaWarpsRequest(
+        args?: CudaDebugProtocol.CudaWarpsArguments
+    ): Promise<CudaDebugProtocol.CudaWarpsResponse> {
+        return (await this.send(
+            CudaDebugProtocol.Request.cudaWarps,
+            args
+        )) as CudaDebugProtocol.CudaWarpsResponse;
+    }
+
+    public async cudaWarpDetailsRequest(
+        args: CudaDebugProtocol.CudaWarpDetailsArguments
+    ): Promise<CudaDebugProtocol.CudaWarpDetailsResponse> {
+        return (await this.send(
+            CudaDebugProtocol.Request.cudaWarpDetails,
+            args
+        )) as CudaDebugProtocol.CudaWarpDetailsResponse;
+    }
+
+    public async expectStopped(
+        reason: string,
+        file: string,
+        line: number,
+        event: DebugProtocol.Event
+    ): Promise<StopLocationInfo> {
         expect(event).toEqual(
             expect.objectContaining({
                 event: 'stopped',
@@ -72,7 +100,13 @@ export class CudaDebugClient extends DebugClient {
         return { threadId, frameId: stackFrames[0].id };
     }
 
-    public async expectToStopAt(reason: string, file: string, line: number, timeout: number | undefined, body: () => Promise<void>): Promise<StopLocationInfo> {
+    public async expectToStopAt(
+        reason: string,
+        file: string,
+        line: number,
+        timeout: number | undefined,
+        body: () => Promise<void>
+    ): Promise<StopLocationInfo> {
         const stoppedEvent = this.waitForEvent('stopped', timeout);
         await body();
         return await this.expectStopped(reason, file, line, await stoppedEvent);

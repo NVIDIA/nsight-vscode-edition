@@ -76,19 +76,27 @@ export interface CudaQnxTargetLaunchRequestArguments extends CudaTargetAttachReq
 }
 
 // Generic implementation for starting cuda-gdbserver over SSH (used for both Linux and QNX)
-export async function startGDBServerGeneric(args: CudaQnxTargetLaunchRequestArguments | CudaTargetLaunchRequestArguments): Promise<{ sshChannel: ClientChannel; remoteWorkingDir: string }> {
+export async function startGDBServerGeneric(
+    args: CudaQnxTargetLaunchRequestArguments | CudaTargetLaunchRequestArguments
+): Promise<{ sshChannel: ClientChannel; remoteWorkingDir: string }> {
     const host = args.target!.host ?? 'localhost';
     const target = args.target!;
 
     // Gather SSH credentials (priority: launch config > SSH config > user input)
-    const connectConfig = await gatherSSHCredentials(host, args.autostart?.sshPort, args.autostart?.sshUsername, args.autostart?.sshKeyPath);
+    const connectConfig = await gatherSSHCredentials(
+        host,
+        args.autostart?.sshPort,
+        args.autostart?.sshUsername,
+        args.autostart?.sshKeyPath
+    );
 
     // Use resolved hostname for GDB connection (replaces SSH alias with actual hostname from SSH config if available)
     target.host = connectConfig.host;
 
     // Determine remote directory: use remoteUploadPath if provided, otherwise query TMPDIR with fallback to /tmp
     const qnxArgs = args as CudaQnxTargetLaunchRequestArguments;
-    const remoteWorkingDir = qnxArgs.autostart?.remoteUploadPath ?? (await queryRemoteTmpDir(connectConfig));
+    const remoteWorkingDir =
+        qnxArgs.autostart?.remoteUploadPath ?? (await queryRemoteTmpDir(connectConfig));
 
     // Set executableUploadPath for QNX so that cdt-gdb-adapter has a remote path to upload the debuggee executable to
     // (For Linux, the executable is either already on target or uploaded by transferFile function below)
@@ -97,7 +105,11 @@ export async function startGDBServerGeneric(args: CudaQnxTargetLaunchRequestArgu
     }
 
     // Build remote command (cuda-gdbserver)
-    const { remoteCmd, uploadSpec } = buildRemoteCommand(args, remoteWorkingDir, connectConfig.host!);
+    const { remoteCmd, uploadSpec } = buildRemoteCommand(
+        args,
+        remoteWorkingDir,
+        connectConfig.host!
+    );
 
     // Transfer file if needed (rsync, falls back to sftp)
     if (uploadSpec) {
@@ -119,7 +131,11 @@ export async function startGDBServerGeneric(args: CudaQnxTargetLaunchRequestArgu
 }
 
 // Build remote command for all 4 remote autostart workflows (Linux and QNX)
-function buildRemoteCommand(args: CudaTargetLaunchRequestArguments | CudaQnxTargetLaunchRequestArguments, remoteWorkingDir: string, resolvedHostname: string): { remoteCmd: string; uploadSpec?: { local: string; remoteDir: string } } {
+function buildRemoteCommand(
+    args: CudaTargetLaunchRequestArguments | CudaQnxTargetLaunchRequestArguments,
+    remoteWorkingDir: string,
+    resolvedHostname: string
+): { remoteCmd: string; uploadSpec?: { local: string; remoteDir: string } } {
     const autostartMode = args.autostart!.mode;
     const serverBinary = args.target!.server ?? 'cuda-gdbserver';
     const target = args.target!;
@@ -133,10 +149,13 @@ function buildRemoteCommand(args: CudaTargetLaunchRequestArguments | CudaQnxTarg
             // Linux: Remote executable already on target
             const linuxArgs = args as CudaTargetLaunchRequestArguments;
             if (!linuxArgs.autostart?.remoteExecutable) {
-                throw new Error('autostart.remoteExecutable is required for autostart.mode "linux-remote".');
+                throw new Error(
+                    'autostart.remoteExecutable is required for autostart.mode "linux-remote".'
+                );
             }
             const escapedArgs = programArgs.map((arg) => escapeShellArg(arg)).join(' ') ?? '';
-            remoteCmd = `${escapeShellArg(serverBinary)} ${escapeShellArg(`${resolvedHostname}:${target.port}`)} ${escapeShellArg(linuxArgs.autostart.remoteExecutable)} ${escapedArgs}`.trim();
+            remoteCmd =
+                `${escapeShellArg(serverBinary)} ${escapeShellArg(`${resolvedHostname}:${target.port}`)} ${escapeShellArg(linuxArgs.autostart.remoteExecutable)} ${escapedArgs}`.trim();
             break;
         }
 
@@ -151,7 +170,8 @@ function buildRemoteCommand(args: CudaTargetLaunchRequestArguments | CudaQnxTarg
             const remotePath = `${remoteWorkingDir}/${basename}`;
             uploadSpec = { local: localExecutable, remoteDir: remoteWorkingDir };
             const escapedArgs = programArgs?.map((arg) => escapeShellArg(arg)).join(' ') ?? '';
-            remoteCmd = `chmod +x ${escapeShellArg(remotePath)} && ${escapeShellArg(serverBinary)} ${escapeShellArg(`${resolvedHostname}:${target.port}`)} ${escapeShellArg(remotePath)} ${escapedArgs}`.trim();
+            remoteCmd =
+                `chmod +x ${escapeShellArg(remotePath)} && ${escapeShellArg(serverBinary)} ${escapeShellArg(`${resolvedHostname}:${target.port}`)} ${escapeShellArg(remotePath)} ${escapedArgs}`.trim();
             break;
         }
 
@@ -160,7 +180,12 @@ function buildRemoteCommand(args: CudaTargetLaunchRequestArguments | CudaQnxTarg
             // Debuggee will be uploaded by GDB itself
             const qnxArgs = args as CudaQnxTargetLaunchRequestArguments;
             const remoteCudaGdbServerPath = target.server ?? 'cuda-gdbserver';
-            remoteCmd = buildQnxRemoteCommand({ serverPath: remoteCudaGdbServerPath, workingDir: remoteWorkingDir, port: target.port!, serverEnvironment: qnxArgs.autostart?.serverEnvironment });
+            remoteCmd = buildQnxRemoteCommand({
+                serverPath: remoteCudaGdbServerPath,
+                workingDir: remoteWorkingDir,
+                port: target.port!,
+                serverEnvironment: qnxArgs.autostart?.serverEnvironment
+            });
             break;
         }
 
@@ -168,11 +193,18 @@ function buildRemoteCommand(args: CudaTargetLaunchRequestArguments | CudaQnxTarg
             // QNX: Upload cuda-gdbserver binary to target
             // Debuggee will be uploaded by GDB itself
             const qnxArgs = args as CudaQnxTargetLaunchRequestArguments;
-            const localServerPath = qnxArgs.autostart?.localCudaGdbServerPath ?? '/usr/local/cuda/bin/cuda-gdbserver';
+            const localServerPath =
+                qnxArgs.autostart?.localCudaGdbServerPath ?? '/usr/local/cuda/bin/cuda-gdbserver';
             const remoteCudaGdbServerPath = `${remoteWorkingDir}/${path.basename(localServerPath)}`;
 
             uploadSpec = { local: localServerPath, remoteDir: remoteWorkingDir };
-            remoteCmd = buildQnxRemoteCommand({ serverPath: remoteCudaGdbServerPath, workingDir: remoteWorkingDir, port: target.port!, serverEnvironment: qnxArgs.autostart?.serverEnvironment, chmodServer: true });
+            remoteCmd = buildQnxRemoteCommand({
+                serverPath: remoteCudaGdbServerPath,
+                workingDir: remoteWorkingDir,
+                port: target.port!,
+                serverEnvironment: qnxArgs.autostart?.serverEnvironment,
+                chmodServer: true
+            });
             break;
         }
 
@@ -185,11 +217,19 @@ function buildRemoteCommand(args: CudaTargetLaunchRequestArguments | CudaQnxTarg
 }
 
 // Build QNX remote command with optional environment variables
-function buildQnxRemoteCommand(params: { serverPath: string; workingDir: string; port: string; serverEnvironment?: Array<{ name: string; value: string }>; chmodServer?: boolean }): string {
+function buildQnxRemoteCommand(params: {
+    serverPath: string;
+    workingDir: string;
+    port: string;
+    serverEnvironment?: Array<{ name: string; value: string }>;
+    chmodServer?: boolean;
+}): string {
     const { serverPath, workingDir, port, serverEnvironment, chmodServer } = params;
 
     // Build environment variable string
-    const envVars = serverEnvironment ? serverEnvironment.map(({ name, value }) => `${name}=${escapeShellArg(value)}`).join(' ') : '';
+    const envVars = serverEnvironment
+        ? serverEnvironment.map(({ name, value }) => `${name}=${escapeShellArg(value)}`).join(' ')
+        : '';
 
     // Build command parts
     const chmodCmd = chmodServer ? `chmod +x ${serverPath} &&` : '';

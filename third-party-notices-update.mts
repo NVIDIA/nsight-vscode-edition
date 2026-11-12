@@ -10,6 +10,8 @@ const crawlerOverridesFileName = '.crawler-overrides.json';
 // please also ensure that you look up any additional files that need to be included
 // in our third-party-notices.txt file
 const additionalFiles = [
+    { name: '@tanstack/react-virtual', version: '3.14.13', files: [] },
+    { name: '@tanstack/virtual-core', version: '3.17.11', files: [] },
     { name: '@types/vscode', version: '1.101.0', files: [] },
     { name: '@vscode/debugadapter', version: '1.68.0', files: ['thirdpartynotices.txt'] },
     { name: '@vscode/debugprotocol', version: '1.68.0', files: [] },
@@ -21,7 +23,10 @@ const additionalFiles = [
     { name: 'isexe', version: '3.1.1', files: [] },
     { name: 'nan', version: '2.26.2', files: [] },
     { name: 'node-addon-api', version: '4.3.0', files: [] },
+    { name: 'react', version: '19.3.0', files: [] },
+    { name: 'react-dom', version: '19.3.0', files: [] },
     { name: 'safer-buffer', version: '2.1.2', files: [] },
+    { name: 'scheduler', version: '0.28.0', files: [] },
     { name: 'semver', version: '7.7.2', files: [] },
     { name: 'ssh-config', version: '4.4.4', files: [] },
     { name: 'ssh2', version: '1.17.0', files: [] },
@@ -56,7 +61,10 @@ function readJsonFile(filePath: string): any {
 }
 
 async function fetchLicenseContent(licenseFile: string): Promise<string> {
-    if (licenseFile.toLowerCase().startsWith('http://') || licenseFile.toLowerCase().startsWith('https://')) {
+    if (
+        licenseFile.toLowerCase().startsWith('http://') ||
+        licenseFile.toLowerCase().startsWith('https://')
+    ) {
         const response = await fetch(licenseFile);
         return await response.text();
     } else {
@@ -64,7 +72,10 @@ async function fetchLicenseContent(licenseFile: string): Promise<string> {
     }
 }
 
-function crawlLicenseInformation(workspaceFolder: string, mainPackage: string): Promise<licenseChecker.ModuleInfos> {
+function crawlLicenseInformation(
+    workspaceFolder: string,
+    mainPackage: string
+): Promise<licenseChecker.ModuleInfos> {
     return new Promise((resolve, reject) => {
         licenseChecker.init(
             {
@@ -85,11 +96,18 @@ function crawlLicenseInformation(workspaceFolder: string, mainPackage: string): 
     });
 }
 
-async function updateThirdPartyNotices(workingDirectory: string, outFile: string, verbose: boolean): Promise<void> {
+async function updateThirdPartyNotices(
+    workingDirectory: string,
+    outFile: string,
+    verbose: boolean
+): Promise<void> {
     const packageDefinition = readJsonFile(path.resolve(workingDirectory, 'package.json'));
     writeOutput('Crawling license information...\n');
 
-    const moduleInfos = await crawlLicenseInformation(workingDirectory, `${packageDefinition.name}@${packageDefinition.version}`);
+    const moduleInfos = await crawlLicenseInformation(
+        workingDirectory,
+        `${packageDefinition.name}@${packageDefinition.version}`
+    );
     let generatedContent = `${packageDefinition.displayName} incorporates third-party components listed below:\n`;
 
     // Used to separate pacakges
@@ -98,14 +116,20 @@ async function updateThirdPartyNotices(workingDirectory: string, outFile: string
     // Used to separate additional files associated with package information
     const dashSeparator = `\n${'-'.repeat(80)}\n\n`;
 
-    const crawlerOverrides = fs.existsSync(crawlerOverridesFileName) ? readJsonFile(crawlerOverridesFileName) : {};
+    const crawlerOverrides = fs.existsSync(crawlerOverridesFileName)
+        ? readJsonFile(crawlerOverridesFileName)
+        : {};
 
     const packageNames = Object.keys(moduleInfos);
     writeOutput(`${packageNames.length} packages found.\n`);
 
-    const unaccountedPackages = new Set<string>(additionalFiles.map((config) => config.name)).difference(new Set<string>(packageNames.map((name) => getPackageNameAndVersion(name).name)));
+    const unaccountedPackages = new Set<string>(
+        additionalFiles.map((config) => config.name)
+    ).difference(new Set<string>(packageNames.map((name) => getPackageNameAndVersion(name).name)));
     if (unaccountedPackages.size > 0) {
-        writeError(`Expected packages not found by the crawler: ${[...unaccountedPackages].sort().join('\n')}\n`);
+        writeError(
+            `Expected packages not found by the crawler: ${[...unaccountedPackages].sort().join('\n')}\n`
+        );
         process.exit(1);
     }
 
@@ -133,15 +157,31 @@ async function updateThirdPartyNotices(workingDirectory: string, outFile: string
         }
 
         const licenseContents = await fetchLicenseContent(licenseFile);
-        const headerData = [starSeparator, packageName, `Publisher: ${moduleInfo.publisher}`, `Repository: ${moduleInfo.repository}`, `License: ${moduleInfo.licenses}`, 'License text:', '', ''].join('\n');
+        const headerData = [
+            starSeparator,
+            packageName,
+            `Publisher: ${moduleInfo.publisher}`,
+            `Repository: ${moduleInfo.repository}`,
+            `License: ${moduleInfo.licenses}`,
+            'License text:',
+            '',
+            ''
+        ].join('\n');
         generatedContent += headerData;
         generatedContent += licenseContents;
 
         // Check for additional files
-        const additionalFileConfig = additionalFiles.find((config) => config.name === barePackageName && config.version === version);
+        const additionalFileConfig = additionalFiles.find(
+            (config) => config.name === barePackageName && config.version === version
+        );
         if (additionalFileConfig) {
             for (const file of additionalFileConfig.files) {
-                const filePath = path.resolve(workingDirectory, 'node_modules', barePackageName, file);
+                const filePath = path.resolve(
+                    workingDirectory,
+                    'node_modules',
+                    barePackageName,
+                    file
+                );
                 if (fs.existsSync(filePath)) {
                     const fileContents = fs.readFileSync(filePath, 'utf8');
                     generatedContent += dashSeparator;
@@ -150,20 +190,26 @@ async function updateThirdPartyNotices(workingDirectory: string, outFile: string
                 } else {
                     ok = false;
                     writeOutput('error\n');
-                    writeError(`Expected file ${file} not found for package ${barePackageName}@${version}\n`);
+                    writeError(
+                        `Expected file ${file} not found for package ${barePackageName}@${version}\n`
+                    );
                 }
             }
         } else {
             ok = false;
             writeOutput('error\n');
-            writeError(`Version mismatch or missing additional file configuration for package ${barePackageName}@${version}\n`);
+            writeError(
+                `Version mismatch or missing additional file configuration for package ${barePackageName}@${version}\n`
+            );
         }
 
         writeOutput(' done.\n');
     }
 
     if (!ok) {
-        writeError('Some packages had issues during processing. Please check the output above for details.\n');
+        writeError(
+            'Some packages had issues during processing. Please check the output above for details.\n'
+        );
         process.exit(1);
     }
 
