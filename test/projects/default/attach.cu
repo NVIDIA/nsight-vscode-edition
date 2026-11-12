@@ -62,7 +62,7 @@ void wait_for_debugger_attach()
         std::this_thread::sleep_for(std::chrono::milliseconds(250));
     }
 
-    print("Debugger attached. Running variables scenario.\n");
+    print("Debugger attached. Running variables scenario.\n"); /*📍attached*/
     std::cout.flush();
 }
 

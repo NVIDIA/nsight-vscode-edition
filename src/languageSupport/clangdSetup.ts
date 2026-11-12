@@ -26,7 +26,10 @@ export type ClangdSetupOptions = {
 };
 
 export type ClangdSetupResult = { kind: 'configured' | 'existingFile'; clangdPath: string };
-export type ClangdExampleGenerationResult = { kind: 'generated' | 'existingFile'; examplePath: string };
+export type ClangdExampleGenerationResult = {
+    kind: 'generated' | 'existingFile';
+    examplePath: string;
+};
 
 function normalizePath(filePath: string): string {
     return filePath.split(path.sep).join('/');
@@ -56,11 +59,16 @@ export async function hasClangdConfig(workspacePath: string): Promise<boolean> {
             return false;
         }
 
-        throw new Error(`Unable to inspect existing ${clangdFileName} at ${clangdPath}: ${getErrorMessage(error)}`);
+        throw new Error(
+            `Unable to inspect existing ${clangdFileName} at ${clangdPath}: ${getErrorMessage(error)}`
+        );
     }
 }
 
-export function getClangdCompilationDatabaseValue(workspacePath: string, compileCommandsDirectory: string): string {
+export function getClangdCompilationDatabaseValue(
+    workspacePath: string,
+    compileCommandsDirectory: string
+): string {
     const relativePath = path.relative(workspacePath, compileCommandsDirectory);
 
     if (relativePath === '') {
@@ -74,20 +82,39 @@ export function getClangdCompilationDatabaseValue(workspacePath: string, compile
     return normalizePath(compileCommandsDirectory);
 }
 
-export function resolveClangdTemplate(template: string, compilationDatabaseValue: string, cudaEnvironment: CudaEnvironment): string {
-    const templateWithOptionalCccl = template.replace(/^.*@IF_CUDA_CCCL_INCLUDE_DIR@\r?\n([\s\S]*?)^.*@ENDIF_CUDA_CCCL_INCLUDE_DIR@\r?\n?/mu, cudaEnvironment.cudaCcclIncludeDir ? '$1' : '');
+export function resolveClangdTemplate(
+    template: string,
+    compilationDatabaseValue: string,
+    cudaEnvironment: CudaEnvironment
+): string {
+    const templateWithOptionalCccl = template.replace(
+        /^.*@IF_CUDA_CCCL_INCLUDE_DIR@\r?\n([\s\S]*?)^.*@ENDIF_CUDA_CCCL_INCLUDE_DIR@\r?\n?/mu,
+        cudaEnvironment.cudaCcclIncludeDir ? '$1' : ''
+    );
 
     return templateWithOptionalCccl
         .replaceAll('@COMPILE_COMMANDS_DIR@', compilationDatabaseValue)
         .replaceAll('@CUDA_ROOT@', normalizePath(cudaEnvironment.cudaRoot))
         .replaceAll('@CUDA_INCLUDE_DIR@', normalizePath(cudaEnvironment.cudaIncludeDir))
-        .replaceAll('@CUDA_CCCL_INCLUDE_DIR@', cudaEnvironment.cudaCcclIncludeDir ? normalizePath(cudaEnvironment.cudaCcclIncludeDir) : '')
+        .replaceAll(
+            '@CUDA_CCCL_INCLUDE_DIR@',
+            cudaEnvironment.cudaCcclIncludeDir
+                ? normalizePath(cudaEnvironment.cudaCcclIncludeDir)
+                : ''
+        )
         .replaceAll('@CUDA_GPU_ARCH@', cudaEnvironment.cudaGpuArch);
 }
 
 export async function generateClangdConfigContents(options: ClangdSetupOptions): Promise<string> {
-    const template = await fs.readFile(path.join(options.extensionPath, clangdTemplateRelativePath), 'utf8');
-    return resolveClangdTemplate(template, options.compilationDatabaseValue, options.cudaEnvironment);
+    const template = await fs.readFile(
+        path.join(options.extensionPath, clangdTemplateRelativePath),
+        'utf8'
+    );
+    return resolveClangdTemplate(
+        template,
+        options.compilationDatabaseValue,
+        options.cudaEnvironment
+    );
 }
 
 export async function setupClangd(options: ClangdSetupOptions): Promise<ClangdSetupResult> {
@@ -102,7 +129,9 @@ export async function setupClangd(options: ClangdSetupOptions): Promise<ClangdSe
         contents = await generateClangdConfigContents(options);
     } catch (error) {
         const templatePath = path.join(options.extensionPath, clangdTemplateRelativePath);
-        throw new Error(`Unable to generate ${clangdFileName} from template ${templatePath}: ${getErrorMessage(error)}`);
+        throw new Error(
+            `Unable to generate ${clangdFileName} from template ${templatePath}: ${getErrorMessage(error)}`
+        );
     }
 
     try {
@@ -113,7 +142,9 @@ export async function setupClangd(options: ClangdSetupOptions): Promise<ClangdSe
             return { kind: 'existingFile', clangdPath };
         }
 
-        throw new Error(`Unable to write generated ${clangdFileName} to ${clangdPath}: ${getErrorMessage(error)}`);
+        throw new Error(
+            `Unable to write generated ${clangdFileName} to ${clangdPath}: ${getErrorMessage(error)}`
+        );
     }
 
     return { kind: 'configured', clangdPath };

@@ -45,7 +45,9 @@ export default class RubiconEnvironment extends NodeEnvironment {
         this.global.currentLogPath = currentLogPath;
 
         this.#originalConsole = this.global.console;
-        this.#logStream = fs.createWriteStream(path.join(currentLogPath, 'console.log'), { flags: 'as' });
+        this.#logStream = fs.createWriteStream(path.join(currentLogPath, 'console.log'), {
+            flags: 'as'
+        });
         this.global.console = new Console({
             stdout: this.#logStream,
             stderr: this.#logStream,

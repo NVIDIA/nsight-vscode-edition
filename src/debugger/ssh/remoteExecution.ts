@@ -64,8 +64,15 @@ export async function queryRemoteTmpDir(connectConfig: ExtendedConnectConfig): P
     });
 }
 
-export async function executeRemoteCommand(options: RemoteCommandOptions): Promise<RemoteCommandResult> {
-    const { connectConfig, remoteCmd, serverReadyPattern = 'Listening on|Remote debugging|cuda-gdbserver initialized|cuda-gdbserver started', serverStartupDelay = 15_000 } = options;
+export async function executeRemoteCommand(
+    options: RemoteCommandOptions
+): Promise<RemoteCommandResult> {
+    const {
+        connectConfig,
+        remoteCmd,
+        serverReadyPattern = 'Listening on|Remote debugging|cuda-gdbserver initialized|cuda-gdbserver started',
+        serverStartupDelay = 15_000
+    } = options;
 
     const ssh = new SSHClient();
     const host = connectConfig.host;
@@ -106,7 +113,11 @@ export async function executeRemoteCommand(options: RemoteCommandOptions): Promi
 
                 const startupTimeout = setTimeout(() => {
                     if (!serverReady && !resolved) {
-                        onError(new Error(`Timed out waiting for cuda-gdbserver to start. Output: ${serverOutput.join('')}`));
+                        onError(
+                            new Error(
+                                `Timed out waiting for cuda-gdbserver to start. Output: ${serverOutput.join('')}`
+                            )
+                        );
                         ssh.end();
                     }
                 }, serverStartupDelay);
@@ -114,7 +125,11 @@ export async function executeRemoteCommand(options: RemoteCommandOptions): Promi
                 stream.on('close', () => {
                     clearTimeout(startupTimeout);
                     if (!resolved) {
-                        onError(new Error(`cuda-gdbserver exited unexpectedly. Output: ${serverOutput.join('')}`));
+                        onError(
+                            new Error(
+                                `cuda-gdbserver exited unexpectedly. Output: ${serverOutput.join('')}`
+                            )
+                        );
                         ssh.end();
                     } else {
                         logger.verbose('[ssh] cuda-gdbserver session ended');
@@ -144,7 +159,9 @@ export async function executeRemoteCommand(options: RemoteCommandOptions): Promi
 
         ssh.on('error', onError);
         const portInfo = connectConfig.port ? `:${connectConfig.port}` : '';
-        logger.verbose(`[ssh] Connecting to SSH ${host}${portInfo} as ${connectConfig.username}...`);
+        logger.verbose(
+            `[ssh] Connecting to SSH ${host}${portInfo} as ${connectConfig.username}...`
+        );
         ssh.connect(connectConfig);
     });
 }

@@ -51,9 +51,15 @@ describe('CUDA focus tests', () => {
             })
         );
 
-        const stopInfo = await dc.expectToStopAt('breakpoint', programSrc, lineNumbers.deviceCall, undefined, async () => {
-            await dc.configurationDoneRequest();
-        });
+        const stopInfo = await dc.expectToStopAt(
+            'breakpoint',
+            programSrc,
+            lineNumbers.deviceCall,
+            undefined,
+            async () => {
+                await dc.configurationDoneRequest();
+            }
+        );
 
         const changedCudaFocusPromise = dc.waitForEvent('changedCudaFocus');
         await dc.evaluateRequest({
@@ -61,7 +67,8 @@ describe('CUDA focus tests', () => {
             context: 'repl',
             frameId: stopInfo.frameId
         });
-        const changedCudaFocusEvent = (await changedCudaFocusPromise) as CudaDebugProtocol.ChangedCudaFocusEvent;
+        const changedCudaFocusEvent =
+            (await changedCudaFocusPromise) as CudaDebugProtocol.ChangedCudaFocusEvent;
         expect(changedCudaFocusEvent).toEqual(
             expect.objectContaining({
                 body: expect.objectContaining({

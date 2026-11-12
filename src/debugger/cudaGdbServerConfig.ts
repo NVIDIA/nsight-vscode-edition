@@ -9,7 +9,11 @@
 |                                                                                      |
 \* ---------------------------------------------------------------------------------- */
 
-import { CudaQnxTargetLaunchRequestArguments, CudaTargetLaunchRequestArguments, type CudaTargetLaunchArguments } from './cudaGdbServerAutostart';
+import {
+    CudaQnxTargetLaunchRequestArguments,
+    CudaTargetLaunchRequestArguments,
+    type CudaTargetLaunchArguments
+} from './cudaGdbServerAutostart';
 
 interface GdbServerValidationOptions {
     defaultPort: string;
@@ -34,12 +38,20 @@ export function parseProgramArgs(args?: string | string[]): string[] {
     }
 }
 
-export function validateGdbServerArgs(args: CudaQnxTargetLaunchRequestArguments | CudaTargetLaunchRequestArguments, options: GdbServerValidationOptions): ValidatedGdbServerArgs {
+export function validateGdbServerArgs(
+    args: CudaQnxTargetLaunchRequestArguments | CudaTargetLaunchRequestArguments,
+    options: GdbServerValidationOptions
+): ValidatedGdbServerArgs {
     const target = args.target ?? {};
 
     const host = target.host ?? 'localhost';
-    if (options.requireRemoteHost && (host === 'localhost' || host === '127.0.0.1' || host === '::1')) {
-        throw new Error(`${options.platform.toUpperCase()} debugging requires a remote host. Please specify target.host in your launch configuration.`);
+    if (
+        options.requireRemoteHost &&
+        (host === 'localhost' || host === '127.0.0.1' || host === '::1')
+    ) {
+        throw new Error(
+            `${options.platform.toUpperCase()} debugging requires a remote host. Please specify target.host in your launch configuration.`
+        );
     }
 
     const sshPort = args.autostart?.sshPort ?? '22';
@@ -53,7 +65,9 @@ export function validateGdbServerArgs(args: CudaQnxTargetLaunchRequestArguments 
     }
 
     if (!args.autostart?.mode || !options.validAutostartModes.includes(args.autostart?.mode)) {
-        throw new Error(`Invalid autostart.mode: ${args.autostart?.mode}. Expected one of: ${options.validAutostartModes.join(', ')}`);
+        throw new Error(
+            `Invalid autostart.mode: ${args.autostart?.mode}. Expected one of: ${options.validAutostartModes.join(', ')}`
+        );
     }
     const result: ValidatedGdbServerArgs = { sshPort, target };
 

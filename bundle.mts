@@ -2,6 +2,7 @@
 
 import * as assert from 'node:assert/strict';
 import path from 'node:path';
+import { rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
 import { type BuildOptions } from 'esbuild';
@@ -14,6 +15,15 @@ const targetBuildOptions = {
     debugAdapter: {
         entryPoints: ['src/debugger/cudaGdbAdapter.ts'],
         outfile: 'dist/debugAdapter.js'
+    },
+    warpInfo: {
+        entryPoints: ['src/webviews/warpInfo/frontend/main.tsx'],
+        outfile: 'dist/webviews/warpInfo/main.js',
+        platform: 'browser',
+        format: 'esm',
+        target: 'es2022',
+        jsx: 'automatic',
+        external: []
     }
 } satisfies { [key: string]: BuildOptions };
 
@@ -43,13 +53,16 @@ async function main(): Promise<void> {
     const targets: TargetName[] = [];
 
     let watch = false,
-        vscode = false;
+        vscode = false,
+        production = false;
     while (args.length > 0) {
         const arg = args.shift() ?? '';
         if (arg == '--watch') {
             watch = true;
         } else if (arg == '--vscode') {
             vscode = true;
+        } else if (arg == '--production') {
+            production = true;
         } else if (arg in targetBuildOptions) {
             targets.push(arg as TargetName);
         } else {
@@ -57,11 +70,24 @@ async function main(): Promise<void> {
         }
     }
 
-    assert.ok(!watch || targets.length === 1, '--watch can only be used with a single target.');
     assert.ok(targets.length > 0, 'At least one target must be specified.');
 
+    const building = new Set(targets);
+    if (vscode) console.log('<build>');
     for (const target of targets) {
         const buildOptions = getBuildOptions(target);
+        if (target === 'warpInfo') {
+            buildOptions.define = {
+                'process.env.NODE_ENV': JSON.stringify(production ? 'production' : 'development')
+            };
+            buildOptions.minify = production;
+            buildOptions.sourcemap = production ? false : 'linked';
+            if (production) {
+                const output = path.resolve(buildOptions.absWorkingDir!, buildOptions.outfile!);
+                await rm(`${output}.map`, { force: true });
+                await rm(output.replace(/\.js$/, '.css.map'), { force: true });
+            }
+        }
         if (vscode) {
             // When running as VSCode background task, we need to output errors in a format that
             // the corresponding problem matcher in .vscode/tasks.json can parse.
@@ -70,14 +96,19 @@ async function main(): Promise<void> {
                 name: 'esbuild-problem-matcher',
                 setup(build: esbuild.PluginBuild) {
                     build.onStart(() => {
-                        console.log('<build>');
+                        if (building.size === 0) console.log('<build>');
+                        building.add(target);
                     });
                     build.onEnd((result) => {
                         for (const { text, location } of result.errors) {
-                            const loc = location === null ? '' : `${location.file}:${location.line}:${location.column}: `;
+                            const loc =
+                                location === null
+                                    ? ''
+                                    : `${location.file}:${location.line}:${location.column}: `;
                             console.error(`${loc}error: ${text}`);
                         }
-                        console.log('</build>');
+                        building.delete(target);
+                        if (building.size === 0) console.log('</build>');
                     });
                 }
             });

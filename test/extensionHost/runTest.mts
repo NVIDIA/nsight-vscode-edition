@@ -15,7 +15,13 @@ import path from 'node:path';
 import { runTests } from '@vscode/test-electron';
 
 const extensionDevelopmentPath = process.cwd();
-const extensionTestsPath = path.resolve(extensionDevelopmentPath, 'out', 'extensionHost', 'suite', 'index.js');
+const extensionTestsPath = path.resolve(
+    extensionDevelopmentPath,
+    'out',
+    'extensionHost',
+    'suite',
+    'index.js'
+);
 const defaultVSCodeExecutablePath = '/usr/share/code/code';
 
 async function getVSCodeExecutablePath(): Promise<string | undefined> {
@@ -31,7 +37,12 @@ async function getVSCodeExecutablePath(): Promise<string | undefined> {
     }
 }
 
-async function createTestWorkspace(): Promise<{ workspacePath: string; userDataDir: string; extensionsDir: string; cudaRoot: string }> {
+async function createTestWorkspace(): Promise<{
+    workspacePath: string;
+    userDataDir: string;
+    extensionsDir: string;
+    cudaRoot: string;
+}> {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'rubicon-extension-host-'));
     const workspacePath = path.join(root, 'workspace');
     const userDataDir = path.join(root, 'user-data');
@@ -47,7 +58,11 @@ async function createTestWorkspace(): Promise<{ workspacePath: string; userDataD
     await fs.mkdir(path.join(cudaRoot, 'include', 'cccl'), { recursive: true });
     await fs.mkdir(path.dirname(nvccPath), { recursive: true });
     await fs.writeFile(nvccPath, '#!/bin/sh\n', 'utf8');
-    await fs.writeFile(path.join(workspacePath, 'kernel.cu'), '__global__ void kernel() {}\n', 'utf8');
+    await fs.writeFile(
+        path.join(workspacePath, 'kernel.cu'),
+        '__global__ void kernel() {}\n',
+        'utf8'
+    );
     await fs.writeFile(
         path.join(buildPath, 'compile_commands.json'),
         `${JSON.stringify(
@@ -55,7 +70,12 @@ async function createTestWorkspace(): Promise<{ workspacePath: string; userDataD
                 {
                     directory: workspacePath,
                     file: path.join(workspacePath, 'kernel.cu'),
-                    arguments: [nvccPath, '-arch=sm_90a', '-c', path.join(workspacePath, 'kernel.cu')]
+                    arguments: [
+                        nvccPath,
+                        '-arch=sm_90a',
+                        '-c',
+                        path.join(workspacePath, 'kernel.cu')
+                    ]
                 }
             ],
             undefined,

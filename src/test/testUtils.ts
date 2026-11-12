@@ -109,7 +109,10 @@ export class TestUtils {
         return dc;
     }
 
-    static async getLaunchArguments(testProgram: string, args?: string): Promise<CudaLaunchRequestArguments> {
+    static async getLaunchArguments(
+        testProgram: string,
+        args?: string
+    ): Promise<CudaLaunchRequestArguments> {
         const testProgramPath = TestUtils.getTestProgram(testProgram);
         const logFilePath = path.resolve(path.dirname(testProgramPath), '.rubicon_log');
 
@@ -131,17 +134,29 @@ export class TestUtils {
         return dc;
     }
 
-    static async assertStoppedLocation(dc: CudaDebugClient, reason: string, file: string, line: number, timeout?: number): Promise<StopLocationInfo> {
+    static async assertStoppedLocation(
+        dc: CudaDebugClient,
+        reason: string,
+        file: string,
+        line: number,
+        timeout?: number
+    ): Promise<StopLocationInfo> {
         return dc.expectToStopAt(reason, file, line, timeout, async () => {});
     }
 
-    static async getLocals(dc: DebugClient, frameId: number): Promise<Map<string, DebugProtocol.Variable>> {
+    static async getLocals(
+        dc: DebugClient,
+        frameId: number
+    ): Promise<Map<string, DebugProtocol.Variable>> {
         const localsScopeReference = await this.getLocalsScopeReference(dc, frameId);
         const locals = await this.getChildren(dc, localsScopeReference);
         return locals;
     }
 
-    static async getLocalsAsObject(dc: DebugClient, frameId: number): Promise<{ [name: string]: DebugProtocol.Variable }> {
+    static async getLocalsAsObject(
+        dc: DebugClient,
+        frameId: number
+    ): Promise<{ [name: string]: DebugProtocol.Variable }> {
         const localsScopeReference = await this.getLocalsScopeReference(dc, frameId);
         const locals = await this.getChildrenAsObject(dc, localsScopeReference);
         return locals;
@@ -157,7 +172,10 @@ export class TestUtils {
         return localScope.variablesReference;
     }
 
-    static async getChildren(dc: DebugClient, variablesReference: number): Promise<Map<string, DebugProtocol.Variable>> {
+    static async getChildren(
+        dc: DebugClient,
+        variablesReference: number
+    ): Promise<Map<string, DebugProtocol.Variable>> {
         const vars = new Map<string, DebugProtocol.Variable>();
 
         const variablesResp = await dc.variablesRequest({
@@ -171,7 +189,10 @@ export class TestUtils {
         return vars;
     }
 
-    static async getChildrenAsObject(dc: DebugClient, variablesReference: number): Promise<{ [name: string]: DebugProtocol.Variable }> {
+    static async getChildrenAsObject(
+        dc: DebugClient,
+        variablesReference: number
+    ): Promise<{ [name: string]: DebugProtocol.Variable }> {
         const vars: { [name: string]: DebugProtocol.Variable } = {};
         const variablesResp = await dc.variablesRequest({ variablesReference });
         for (const v of variablesResp.body.variables) {
@@ -194,7 +215,13 @@ export class TestUtils {
         allowOthers?: boolean | undefined,
         stopTimeout?: number
     ): Promise<StoppedContext> {
-        const { threadId, frameId } = await TestUtils.assertStoppedLocation(dc, stopReason, source, line, stopTimeout ?? TestUtils.defaultVerifyLocalsTimeout);
+        const { threadId, frameId } = await TestUtils.assertStoppedLocation(
+            dc,
+            stopReason,
+            source,
+            line,
+            stopTimeout ?? TestUtils.defaultVerifyLocalsTimeout
+        );
 
         const actual = await TestUtils.getLocals(dc, frameId);
 

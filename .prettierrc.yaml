@@ -2,7 +2,7 @@
 
 arrowParens: "always"
 bracketSpacing: true
-printWidth: 250
+printWidth: 100
 proseWrap: never
 quoteProps: "as-needed"
 semi: true

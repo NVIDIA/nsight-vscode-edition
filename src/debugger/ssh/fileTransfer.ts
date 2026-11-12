@@ -30,16 +30,24 @@ export async function transferFile(options: FileTransferOptions): Promise<void> 
         const errorMessage = rsyncError.message || '';
 
         // Check if rsync failed because it's not available on remote
-        const isRsyncNotAvailable = errorMessage.includes('cannot execute') || errorMessage.includes('No such file or directory') || errorMessage.includes('command not found') || errorMessage.includes('rsync: not found');
+        const isRsyncNotAvailable =
+            errorMessage.includes('cannot execute') ||
+            errorMessage.includes('No such file or directory') ||
+            errorMessage.includes('command not found') ||
+            errorMessage.includes('rsync: not found');
 
         if (isRsyncNotAvailable) {
-            logger.verbose(`[transfer] rsync not available on remote, falling back to SFTP: ${errorMessage}`);
+            logger.verbose(
+                `[transfer] rsync not available on remote, falling back to SFTP: ${errorMessage}`
+            );
             // Fall back to SFTP
             try {
                 await transferFileViaSFTP(options);
                 return;
             } catch (sftpError: any) {
-                throw new Error(`File transfer failed. rsync error: ${errorMessage}. SFTP error: ${sftpError.message}`);
+                throw new Error(
+                    `File transfer failed. rsync error: ${errorMessage}. SFTP error: ${sftpError.message}`
+                );
             }
         } else {
             // rsync failed for another reason
@@ -56,7 +64,9 @@ async function transferFileViaRsync(options: FileTransferOptions): Promise<void>
     const filename = path.basename(localPath);
     const remotePath = `${remoteDir}/${filename}`;
 
-    logger.verbose(`[rsync] Transferring ${localPath} to ${username}@${host}:${remotePath} (port ${sshPort})`);
+    logger.verbose(
+        `[rsync] Transferring ${localPath} to ${username}@${host}:${remotePath} (port ${sshPort})`
+    );
 
     let command: string;
     let args: string[];
@@ -66,22 +76,45 @@ async function transferFileViaRsync(options: FileTransferOptions): Promise<void>
         logger.verbose(`[rsync] Using password authentication via sshpass`);
         const sshOptions = `ssh -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null`;
         command = 'sshpass';
-        args = ['-p', password, 'rsync', '-az', '-e', sshOptions, localPath, `${username}@${host}:${remotePath}`];
+        args = [
+            '-p',
+            password,
+            'rsync',
+            '-az',
+            '-e',
+            sshOptions,
+            localPath,
+            `${username}@${host}:${remotePath}`
+        ];
     } else if (privateKeyPath) {
         logger.verbose(`[rsync] Using key-based authentication with ${privateKeyPath}`);
         const sshOptions = `ssh -p ${sshPort} -i ${privateKeyPath} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null`;
 
         if (passphrase) {
             logger.verbose(`[rsync] Key has passphrase, using sshpass`);
-            const passphraseStr = typeof passphrase === 'string' ? passphrase : passphrase.toString('utf8');
+            const passphraseStr =
+                typeof passphrase === 'string' ? passphrase : passphrase.toString('utf8');
             command = 'sshpass';
-            args = ['-P', 'passphrase', '-p', passphraseStr, 'rsync', '-az', '-e', sshOptions, localPath, `${username}@${host}:${remotePath}`];
+            args = [
+                '-P',
+                'passphrase',
+                '-p',
+                passphraseStr,
+                'rsync',
+                '-az',
+                '-e',
+                sshOptions,
+                localPath,
+                `${username}@${host}:${remotePath}`
+            ];
         } else {
             command = 'rsync';
             args = ['-az', '-e', sshOptions, localPath, `${username}@${host}:${remotePath}`];
         }
     } else {
-        throw new Error('No authentication method available. Either password or privateKeyPath must be provided.');
+        throw new Error(
+            'No authentication method available. Either password or privateKeyPath must be provided.'
+        );
     }
 
     // Execute
@@ -101,9 +134,19 @@ async function transferFileViaRsync(options: FileTransferOptions): Promise<void>
 
         rsyncProcess.on('error', (error: Error) => {
             if (command === 'sshpass') {
-                reject(new Error(`Failed to execute sshpass: ${error.message}. ` + `sshpass is required for password/passphrase authentication with rsync. ` + `Please install sshpass or use SSH key-based authentication without passphrase.`));
+                reject(
+                    new Error(
+                        `Failed to execute sshpass: ${error.message}. ` +
+                            `sshpass is required for password/passphrase authentication with rsync. ` +
+                            `Please install sshpass or use SSH key-based authentication without passphrase.`
+                    )
+                );
             } else {
-                reject(new Error(`Failed to execute rsync: ${error.message}. Ensure rsync is installed on your system.`));
+                reject(
+                    new Error(
+                        `Failed to execute rsync: ${error.message}. Ensure rsync is installed on your system.`
+                    )
+                );
             }
         });
 

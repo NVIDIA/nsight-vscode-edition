@@ -23,14 +23,14 @@
     // Debugger tests are rather heavyweight because they spawn cuda-gdb for every test,
     // so they shouldn't be run automatically.
     "jest.runMode": {
-        "type": "on-demand",
+        "type": "on-demand"
     },
 
     "jest.jestCommandLine": "node_modules/.bin/jest",
     "jest.nodeEnv": {
         "NODE_OPTIONS": "--no-warnings=ExperimentalWarning --experimental-vm-modules --experimental-transform-types"
     },
-    
+
     "files.associations": {
         "random": "cpp",
         "array": "cpp",
@@ -96,5 +96,8 @@
         "barrier": "cpp"
     },
     "cmake.sourceDirectory": "${workspaceFolder}/test/projects",
-    "cmake.buildDirectory": "${workspaceFolder}/test/projects/build"
+    "cmake.buildDirectory": "${workspaceFolder}/test/projects/build",
+    "terminal.integrated.env.linux": {
+        "PATH": "${workspaceFolder}/node_modules/.bin:${env:PATH}"
+    }
 }

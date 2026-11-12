@@ -46,7 +46,12 @@ describe('Stepping tests', () => {
         expect(bpResponse.body.breakpoints[0].verified).eq(true);
 
         await dc.configurationDoneRequest();
-        const stopLocation = await TestUtils.assertStoppedLocation(dc, 'breakpoint', programSrc, deviceCallSite);
+        const stopLocation = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            programSrc,
+            deviceCallSite
+        );
 
         await dc.stepInRequest({ threadId: stopLocation.threadId });
         await TestUtils.assertStoppedLocation(dc, 'step', programSrc, deviceEntry);

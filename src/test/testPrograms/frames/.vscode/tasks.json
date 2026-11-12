@@ -5,7 +5,7 @@
             "label": "Build",
             "type": "shell",
             "command": "make",
-            "problemMatcher":["$gcc"],
+            "problemMatcher": ["$gcc"],
             "group": {
                 "kind": "build",
                 "isDefault": true

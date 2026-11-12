@@ -166,3 +166,108 @@ int run_variables_test()
 }
 
 REGISTER_TEST_PROP(variables, run_variables_test);
+
+// ===== PRIMITIVE TYPE LOCALS & GLOBALS =====
+// Covers presence, names, types, and values of primitive-typed locals and globals in both
+// host and device frames. Each category below reassigns its local and mirrors the new value
+// into the matching global on the same source line, so a single step exercises both.
+
+bool g_hostBool = false;
+int g_hostInt = -7;
+float g_hostFloat = 1.25f;
+double g_hostDouble = 2.5;
+char g_hostChar = 'x';
+unsigned int g_hostUInt = 4000000000u;
+unsigned char g_hostUChar = 200;
+unsigned long g_hostULong = 100000UL;
+
+__device__ bool g_deviceBool = false;
+__device__ int g_deviceInt = -7;
+__device__ float g_deviceFloat = 1.25f;
+__device__ double g_deviceDouble = 2.5;
+__device__ char g_deviceChar = 'x';
+__device__ unsigned int g_deviceUInt = 4000000000u;
+__device__ unsigned char g_deviceUChar = 200;
+__device__ unsigned long g_deviceULong = 100000UL;
+
+int run_variables_primitives_host_test()
+{
+    bool b = false;
+    int i = -7;
+    float f = 1.25f;
+    double d = 2.5;
+    char c = 'x';
+    unsigned int ui = 4000000000u;
+    unsigned char uc = 200;
+    unsigned long ul = 100000UL;
+    int arr[3] = { 1, 2, 3 };
+    int* p = arr;
+
+    /*📍hostPrimitivesEntry*/ print("p[0]={}\n", *p);
+
+    /*📍hostPrimitivesStepBool*/ b = true; g_hostBool = b;
+    /*📍hostPrimitivesStepInt*/ i = 55; g_hostInt = i;
+    /*📍hostPrimitivesStepFloat*/ f = 9.5f; g_hostFloat = f;
+    /*📍hostPrimitivesStepDouble*/ d = 12.75; g_hostDouble = d;
+    /*📍hostPrimitivesStepChar*/ c = 'z'; g_hostChar = c;
+    /*📍hostPrimitivesStepUInt*/ ui = 4200000000u; g_hostUInt = ui;
+    /*📍hostPrimitivesStepUChar*/ uc = 250; g_hostUChar = uc;
+    /*📍hostPrimitivesStepULong*/ ul = 200000UL; g_hostULong = ul;
+    /*📍hostPrimitivesStepPointer*/ p = &arr[2];
+
+    /*📍hostPrimitivesAfterStep*/ print("p[2]={}\n", *p);
+
+    print("Success\n");
+    exit(0);
+}
+
+__global__ void primitivesKernel()
+{
+    bool b = false;
+    int i = -7;
+    float f = 1.25f;
+    double d = 2.5;
+    char c = 'x';
+    unsigned int ui = 4000000000u;
+    unsigned char uc = 200;
+    unsigned long ul = 100000UL;
+    int arr[3] = { 1, 2, 3 };
+    int* p = arr;
+
+    /*📍devicePrimitivesEntry*/ printf("p[0]=%d\n", *p);
+
+    /*📍devicePrimitivesStepBool*/ b = true; g_deviceBool = b;
+    /*📍devicePrimitivesStepInt*/ i = 55; g_deviceInt = i;
+    /*📍devicePrimitivesStepFloat*/ f = 9.5f; g_deviceFloat = f;
+    /*📍devicePrimitivesStepDouble*/ d = 12.75; g_deviceDouble = d;
+    /*📍devicePrimitivesStepChar*/ c = 'z'; g_deviceChar = c;
+    /*📍devicePrimitivesStepUInt*/ ui = 4200000000u; g_deviceUInt = ui;
+    /*📍devicePrimitivesStepUChar*/ uc = 250; g_deviceUChar = uc;
+    /*📍devicePrimitivesStepULong*/ ul = 200000UL; g_deviceULong = ul;
+    /*📍devicePrimitivesStepPointer*/ p = &arr[2];
+
+    /*📍devicePrimitivesAfterStep*/ printf("p[2]=%d\n", *p);
+}
+
+int run_variables_primitives_device_test()
+{
+    int cudaDeviceCount;
+    cudaGetDeviceCount(&cudaDeviceCount) || panic;
+    assert(cudaDeviceCount > 0);
+
+    cudaSetDevice(0) || panic;
+
+    primitivesKernel<<<1, 1>>>();
+    cudaDeviceSynchronize() || panic;
+
+    print("Success\n");
+    exit(0);
+}
+
+namespace variables_primitives_host_ns {
+    REGISTER_TEST_PROP(variables-primitives-host, run_variables_primitives_host_test);
+}
+
+namespace variables_primitives_device_ns {
+    REGISTER_TEST_PROP(variables-primitives-device, run_variables_primitives_device_test);
+}

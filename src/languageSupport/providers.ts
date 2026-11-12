@@ -27,6 +27,9 @@ export type InstalledLanguageProviders = Record<LanguageProvider, boolean>;
 
 export const languageProviderIds = Object.keys(languageProviderRegistry) as LanguageProvider[];
 
-export function installedLanguageProvidersEqual(previous: InstalledLanguageProviders, current: InstalledLanguageProviders): boolean {
+export function installedLanguageProvidersEqual(
+    previous: InstalledLanguageProviders,
+    current: InstalledLanguageProviders
+): boolean {
     return languageProviderIds.every((provider) => previous[provider] === current[provider]);
 }

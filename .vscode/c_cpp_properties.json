@@ -2,10 +2,7 @@
     "configurations": [
         {
             "name": "Linux",
-            "includePath": [
-                "/usr/local/cuda/include",
-                "${workspaceFolder}/**"
-            ],
+            "includePath": ["/usr/local/cuda/include", "${workspaceFolder}/**"],
             "defines": [],
             "compilerPath": "/usr/local/cuda/bin/nvcc",
             "cStandard": "gnu17",

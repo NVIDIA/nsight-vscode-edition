@@ -1,4 +1,8 @@
-import { type GDBBackend, type ObjectVariableReference, sendDataEvaluateExpression } from 'cdt-gdb-adapter';
+import {
+    type GDBBackend,
+    type ObjectVariableReference,
+    sendDataEvaluateExpression
+} from 'cdt-gdb-adapter';
 import { logger } from '@vscode/debugadapter';
 
 const CUDA_BUILTINS_CONTAINER = 'cudaBuiltins';
@@ -12,23 +16,42 @@ export interface CudaBuiltinsVariableReference extends ObjectVariableReference {
 
 // Type guards for synthetic CUDA handles
 function isCudaBuiltinsRef(ref: unknown): ref is CudaBuiltinsVariableReference {
-    return !!ref && (ref as any).type === 'object' && (ref as any).container === CUDA_BUILTINS_CONTAINER;
+    return (
+        !!ref &&
+        (ref as any).type === 'object' &&
+        (ref as any).container === CUDA_BUILTINS_CONTAINER
+    );
 }
 
 function isCudaDimRef(ref: unknown): ref is ObjectVariableReference {
     const candidate: any = ref as any;
-    return !!ref && candidate.type === 'object' && typeof candidate.varobjName === 'string' && candidate.varobjName.startsWith(CUDA_DIM_PREFIX);
+    return (
+        !!ref &&
+        candidate.type === 'object' &&
+        typeof candidate.varobjName === 'string' &&
+        candidate.varobjName.startsWith(CUDA_DIM_PREFIX)
+    );
 }
 
 function isCudaPtxSpecialsRef(ref: unknown): ref is ObjectVariableReference {
     const candidate: any = ref as any;
-    return !!ref && candidate.type === 'object' && typeof candidate.varobjName === 'string' && candidate.varobjName === PTX_REGS_VAROBJ;
+    return (
+        !!ref &&
+        candidate.type === 'object' &&
+        typeof candidate.varobjName === 'string' &&
+        candidate.varobjName === PTX_REGS_VAROBJ
+    );
 }
 
 // Evaluation helper functions
-async function evaluateScalar(gdb: GDBBackend, expression: string, frameId: number, threadId: number): Promise<string> {
+async function evaluateScalar(
+    gdb: GDBBackend,
+    expression: string,
+    frameLevel: number,
+    threadId: number
+): Promise<string> {
     try {
-        const response = await sendDataEvaluateExpression(gdb, expression, frameId, threadId);
+        const response = await sendDataEvaluateExpression(gdb, expression, frameLevel, threadId);
         return response.value ?? 'N/A';
     } catch (error) {
         logger.verbose(`Failed to evaluate built-in ${expression}: ${String(error)}`);
@@ -36,11 +59,20 @@ async function evaluateScalar(gdb: GDBBackend, expression: string, frameId: numb
     }
 }
 
-async function evaluateDimFormatted(gdb: GDBBackend, name: 'threadIdx' | 'blockIdx' | 'blockDim' | 'gridDim', frameId: number, threadId: number): Promise<string> {
+async function evaluateDimFormatted(
+    gdb: GDBBackend,
+    name: 'threadIdx' | 'blockIdx' | 'blockDim' | 'gridDim',
+    frameLevel: number,
+    threadId: number
+): Promise<string> {
     // We don't cache the dimension components here even though they might be fetched again when the user expands the dimensions.
     // The fetch is cheap (3 simple MI commands) and completes quickly, so caching adds complexity without meaningful UX benefit.
     try {
-        const [x, y, z] = await Promise.all([sendDataEvaluateExpression(gdb, `${name}.x`, frameId, threadId), sendDataEvaluateExpression(gdb, `${name}.y`, frameId, threadId), sendDataEvaluateExpression(gdb, `${name}.z`, frameId, threadId)]);
+        const [x, y, z] = await Promise.all([
+            sendDataEvaluateExpression(gdb, `${name}.x`, frameLevel, threadId),
+            sendDataEvaluateExpression(gdb, `${name}.y`, frameLevel, threadId),
+            sendDataEvaluateExpression(gdb, `${name}.z`, frameLevel, threadId)
+        ]);
         return `(${x.value ?? '?'},${y.value ?? '?'},${z.value ?? '?'})`;
     } catch (error) {
         logger.verbose(`Failed to evaluate dimension ${name}: ${String(error)}`);
@@ -48,20 +80,38 @@ async function evaluateDimFormatted(gdb: GDBBackend, name: 'threadIdx' | 'blockI
     }
 }
 
-async function evaluateComponent(gdb: GDBBackend, dimName: string, component: 'x' | 'y' | 'z', frameHandle: number, threadId: number): Promise<string> {
+async function evaluateComponent(
+    gdb: GDBBackend,
+    dimName: string,
+    component: 'x' | 'y' | 'z',
+    frameLevel: number,
+    threadId: number
+): Promise<string> {
     try {
-        const response = await sendDataEvaluateExpression(gdb, `${dimName}.${component}`, frameHandle, threadId);
+        const response = await sendDataEvaluateExpression(
+            gdb,
+            `${dimName}.${component}`,
+            frameLevel,
+            threadId
+        );
         return response.value ?? 'N/A';
     } catch (error) {
-        logger.verbose(`Failed to evaluate built-in component ${dimName}.${component}: ${String(error)}`);
+        logger.verbose(
+            `Failed to evaluate built-in component ${dimName}.${component}: ${String(error)}`
+        );
         return 'N/A';
     }
 }
 
-async function evaluateToken(gdb: GDBBackend, displayName: string, frameHandle: number, threadId: number): Promise<string | undefined> {
+async function evaluateToken(
+    gdb: GDBBackend,
+    displayName: string,
+    frameLevel: number,
+    threadId: number
+): Promise<string | undefined> {
     const token = displayName.startsWith('%') ? `$${displayName.slice(1)}` : displayName;
     try {
-        const evalResult = await sendDataEvaluateExpression(gdb, token, frameHandle, threadId);
+        const evalResult = await sendDataEvaluateExpression(gdb, token, frameLevel, threadId);
         const { value } = evalResult;
         if (value === undefined || String(value) === 'void') {
             return undefined;
@@ -77,7 +127,20 @@ async function evaluateToken(gdb: GDBBackend, displayName: string, frameHandle: 
  * Fallback of the most common PTX special register names.
  * We use this fallback for older versions of cuda-gdb (< 13.2), which do not support the -cuda-info-ptx-special-registers MI command.
  */
-const ptxSpecialRegisterNamesFallback: string[] = ['%laneid', '%warpid', '%nwarpid', '%smid', '%nsmid', '%gridid', '%lanemask_eq', '%lanemask_le', '%lanemask_lt', '%lanemask_ge', '%lanemask_gt', '%aggr_smem_size'];
+const ptxSpecialRegisterNamesFallback: string[] = [
+    '%laneid',
+    '%warpid',
+    '%nwarpid',
+    '%smid',
+    '%nsmid',
+    '%gridid',
+    '%lanemask_eq',
+    '%lanemask_le',
+    '%lanemask_lt',
+    '%lanemask_ge',
+    '%lanemask_gt',
+    '%aggr_smem_size'
+];
 
 export default {
     CUDA_BUILTINS_CONTAINER,

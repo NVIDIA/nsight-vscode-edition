@@ -9,19 +9,13 @@
 |                                                                                      |
 \* ---------------------------------------------------------------------------------- */
 
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import * as vscode from 'vscode';
 
-import { activateDebugController } from './debugController';
-import { type OsInfo } from './debugger/types';
-import { readOsInfo } from './debugger/utils';
-import { TelemetryService } from './telemetryService';
+import { activateDebugController, createCudaRequestSender } from './debugController';
+import { CudaDebugSessionMonitor } from './debugger/cudaDebugSessionMonitor';
+import { registerWarpInfoView } from './webviews/warpInfo/integration/warpInfoView';
 import { AutoStartTaskProvider } from './autoStartTaskProvider';
 import { activateLanguageSupport } from './languageSupportController';
-
-const GA4_API_SECRET = 'VaT67ILSRsGM10lr8Dut7A';
-const GA4_MEASUREMENT_ID = 'G-VELYBBB7X1';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     const outputChannel = vscode.window.createOutputChannel('Nsight Visual Studio Code Edition');
@@ -29,19 +23,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     activateLanguageSupport(context, outputChannel);
 
-    const packagePath: string = path.resolve(context.extensionPath, 'package.json');
-    const packageJson = JSON.parse(await readFile(packagePath, 'utf8'));
+    context.subscriptions.push(
+        vscode.tasks.registerTaskProvider('Autostart', new AutoStartTaskProvider())
+    );
 
-    const telemetry: TelemetryService = new TelemetryService(context, GA4_API_SECRET, GA4_MEASUREMENT_ID, packageJson.version);
-
-    if (telemetry.isEnabled) {
-        const hostOsInfo: OsInfo = await readOsInfo();
-        telemetry.trackSystemInfo('host', { os: hostOsInfo });
-    }
-
-    context.subscriptions.push(vscode.tasks.registerTaskProvider('Autostart', new AutoStartTaskProvider()));
-
-    activateDebugController(context, telemetry);
+    const sessionMonitor = new CudaDebugSessionMonitor();
+    context.subscriptions.push(sessionMonitor);
+    const sendRequest = createCudaRequestSender(context);
+    activateDebugController(context, sessionMonitor);
+    registerWarpInfoView(context, sessionMonitor, sendRequest);
 }
 
 export function deactivate(): void {}

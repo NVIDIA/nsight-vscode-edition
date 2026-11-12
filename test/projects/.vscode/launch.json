@@ -13,13 +13,35 @@
             "testMode": true
         },
         {
+            "name": "default:launch_concurrent",
+            "preLaunchTask": "default:build",
+            "type": "cuda-gdb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/default/default",
+            "args": ["concurrent"],
+            "logFile": "${workspaceFolder}/.rubicon_log",
+            "verboseLogging": true,
+            "testMode": true
+        },
+        {
             "name": "default:attach",
             "type": "cuda-gdb",
             "request": "attach",
             "processId": "${command:cuda.pickProcess}",
             "logFile": "${workspaceFolder}/.rubicon_log",
             "verboseLogging": true,
-            "testMode": true,
+            "testMode": true
+        },
+        {
+            "name": "driverApis:launch",
+            "preLaunchTask": "driverApis:build",
+            "type": "cuda-gdb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/driverApis/driverApis",
+            "args": ["${workspaceFolder}/build/driverApis/kernel.fatbin"],
+            "logFile": "${workspaceFolder}/.rubicon_log",
+            "verboseLogging": true,
+            "testMode": true
         }
     ]
 }

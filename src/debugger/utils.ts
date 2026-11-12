@@ -44,7 +44,9 @@ export function findAllDirectories(rootDir: string): string[] {
             }
         }
     } catch (error) {
-        logger.verbose(`Error reading directories from ${rootDir}: ${error instanceof Error ? error.message : String(error)}`);
+        logger.verbose(
+            `Error reading directories from ${rootDir}: ${error instanceof Error ? error.message : String(error)}`
+        );
     }
 
     return directories;

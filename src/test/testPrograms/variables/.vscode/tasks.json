@@ -5,7 +5,7 @@
             "label": "Build",
             "type": "shell",
             "command": "make",
-            "problemMatcher":["$nvcc"],
+            "problemMatcher": ["$nvcc"],
             "group": {
                 "kind": "build",
                 "isDefault": true

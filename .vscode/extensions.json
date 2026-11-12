@@ -6,6 +6,6 @@
         "esbenp.prettier-vscode",
         "Orta.vscode-jest",
         "ms-vscode.cpptools-extension-pack",
-        "ms-vscode.cmake-tools",
+        "ms-vscode.cmake-tools"
     ]
 }

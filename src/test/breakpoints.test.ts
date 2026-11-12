@@ -74,11 +74,21 @@ describe('Breakpoint tests', () => {
 
         await dc.configurationDoneRequest();
 
-        let { threadId } = await TestUtils.assertStoppedLocation(dc, 'breakpoint', 'variables/variables.cu', 87);
+        let { threadId } = await TestUtils.assertStoppedLocation(
+            dc,
+            'breakpoint',
+            'variables/variables.cu',
+            87
+        );
 
         for (const expectedLineNumber of [88, 90, 92, 93]) {
             await dc.nextRequest({ threadId });
-            ({ threadId } = await TestUtils.assertStoppedLocation(dc, 'step', 'variables/variables.cu', expectedLineNumber));
+            ({ threadId } = await TestUtils.assertStoppedLocation(
+                dc,
+                'step',
+                'variables/variables.cu',
+                expectedLineNumber
+            ));
         }
     });
 
@@ -100,6 +110,34 @@ describe('Breakpoint tests', () => {
         expect(bpResp.body.breakpoints[0].verified).eq(true);
 
         await dc.configurationDoneRequest();
-        await TestUtils.verifyLocalsOnStop(dc, variablesSource, bpLine, 'breakpoint', [{ name: 'i', value: '2' }]);
+        await TestUtils.verifyLocalsOnStop(dc, variablesSource, bpLine, 'breakpoint', [
+            { name: 'i', value: '2' }
+        ]);
+    });
+
+    it('Invalid breakpoint condition surfaces a warning', async () => {
+        const variablesSource = 'variables/variables.cu';
+        const bpLine = 102;
+
+        const bpResp = await dc.setBreakpointsRequest({
+            source: TestUtils.getTestSource(variablesSource),
+            breakpoints: [
+                {
+                    line: bpLine,
+                    condition: '1++2'
+                }
+            ]
+        });
+
+        expect(bpResp.body.breakpoints.length).eq(1);
+
+        const warningEventPromise = dc.waitForEvent('invalidBreakpointCondition');
+
+        await dc.configurationDoneRequest();
+        await TestUtils.assertStoppedLocation(dc, 'breakpoint', 'variables.cu', bpLine);
+
+        const warningEvent = await warningEventPromise;
+        expect(warningEvent.body.breakpointId).eq(bpResp.body.breakpoints[0].id);
+        expect(warningEvent.body.message).includes('syntax error');
     });
 });

@@ -12,9 +12,9 @@
         "noUnusedLocals": true,
         "resolveJsonModule": true,
         "allowJs": true,
-        "types": ["node"],
+        "types": ["node"]
     },
     "files": [],
     "include": [],
-    "exclude": ["node_modules"],
+    "exclude": ["node_modules"]
 }
